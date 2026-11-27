@@ -4,6 +4,7 @@ const { validate } = require('../middleware/validate');
 const { pool } = require('../db/pool');
 const { badRequest, conflict, forbidden, notFound } = require('../services/errors');
 const instanceSettings = require('../services/instanceSettingsService');
+const libraryScanService = require('../services/libraryScanService');
 
 const router = express.Router();
 
@@ -171,6 +172,23 @@ router.delete(
     }
   },
 );
+
+router.get('/library', async (req, res, next) => {
+  try {
+    res.json({ data: await libraryScanService.getStatus() });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/library/scan', async (req, res, next) => {
+  try {
+    const source = await libraryScanService.startScan(req.user.id);
+    res.status(202).json({ data: source });
+  } catch (error) {
+    next(error);
+  }
+});
 
 router.get('/settings', async (req, res, next) => {
   try {

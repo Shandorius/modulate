@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { IngestService } from '../../core/ingest.service';
 import { LibraryService } from '../../core/library.service';
 import { Playlist, Track } from '../../core/models';
@@ -82,10 +83,12 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                 <app-track-row
                   [track]="track"
                   [showAdd]="true"
+                  [canDelete]="canDelete(track)"
                   (play)="play($event)"
                   (queue)="queue($event)"
                   (favorite)="favorite($event)"
                   (add)="startAdding($event)"
+                  (delete)="deleteTrack($event)"
                 />
               }
             </div>
@@ -236,6 +239,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
 export class LibraryPage implements OnInit, OnDestroy {
   readonly api = inject(ApiService);
   readonly library = inject(LibraryService);
+  private readonly auth = inject(AuthService);
   private readonly player = inject(PlayerService);
   private readonly ingest = inject(IngestService);
   private readonly toast = inject(ToastService);
@@ -321,6 +325,29 @@ export class LibraryPage implements OnInit, OnDestroy {
     });
     this.toast.show(updated.isFavorite ? 'Added to favourites.' : 'Removed from favourites.');
     await this.library.load(true);
+  }
+
+  canDelete(track: Track): boolean {
+    return (
+      this.auth.isAdmin() ||
+      (track.storageKind === 'managed' &&
+        track.createdBy === this.auth.user()?.id)
+    );
+  }
+
+  async deleteTrack(track: Track): Promise<void> {
+    const scanned = track.storageKind === 'external';
+    const message = scanned
+      ? `Remove “${track.title}” from Modulate? The original file in the music folder stays untouched.`
+      : `Delete “${track.title}” and its downloaded file? This cannot be undone.`;
+    if (!window.confirm(message)) return;
+    try {
+      await this.library.deleteTrack(track.id);
+      await this.library.load(true);
+      this.toast.show(scanned ? 'Removed from the library.' : 'Track deleted.');
+    } catch (error) {
+      this.toast.show((error as Error).message);
+    }
   }
 
   startAdding(track: Track): void {

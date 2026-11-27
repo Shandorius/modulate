@@ -179,7 +179,7 @@ volumes:
 Create the folders:
 
 ```bash
-mkdir -p data postgres
+mkdir -p data postgres music
 ```
 
 The app entrypoint repairs `./data` ownership automatically on first start. It
@@ -326,6 +326,45 @@ in the UI. Failed jobs can be retried.
 The user is responsible for the URLs they choose to download and for complying
 with local law and the terms of the source site. Modulate does not bundle media
 or bypass access controls.
+
+## Existing music library
+
+You can also point Modulate at a normal folder of music files. This is
+read-only: the app scans files in place and never edits or deletes them.
+
+Compose mounts:
+
+```yaml
+volumes:
+  - "${MUSIC_DIR:-./music}:/music:ro"
+```
+
+Put your library in `./music` on the host, then go to:
+
+```text
+Settings → Music folder → Scan library
+```
+
+Modulate indexes MP3, M4A, FLAC, OGG, Opus, WAV, AAC, and WebM files using
+ffprobe. It reads embedded tags, sidecar artwork such as `cover.jpg` or
+`folder.jpg`, and embedded artwork. The folder is scanned only when you press
+**Scan library**; there is no automatic file watcher yet.
+
+Scanned tracks are marked **external**. Removing one from Modulate removes its
+index entry and playlist references but leaves the original file untouched.
+
+## Deleting music
+
+In **Library** or **Search**, tracks you are allowed to manage show a trash
+button:
+
+- A user can delete tracks they imported through yt-dlp.
+- An admin can delete any managed track or remove any scanned external track.
+- Deleting a managed track removes its downloaded file from the media volume.
+- Removing an external/scanned track only removes it from Modulate.
+
+Playlists are separate: removing a track from a playlist does not delete it
+from the library.
 
 ## API highlights
 

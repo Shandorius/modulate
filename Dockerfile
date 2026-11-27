@@ -37,7 +37,9 @@ ENV NODE_ENV=production \
     DATA_DIR=/data \
     MEDIA_ROOT=/data/media \
     FFMPEG_PATH=/usr/bin/ffmpeg \
-    YTDLP_PATH=/usr/local/bin/yt-dlp
+    FFPROBE_PATH=/usr/bin/ffprobe \
+    YTDLP_PATH=/usr/local/bin/yt-dlp \
+    MUSIC_ROOT=/music
 
 EXPOSE 3000
 

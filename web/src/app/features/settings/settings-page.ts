@@ -49,6 +49,15 @@ import { Icon } from '../shared/icon';
         </a>
 
         @if (auth.isAdmin()) {
+          <a class="settings-link" routerLink="/app/settings/library">
+            <span class="settings-link__mark"><app-icon name="library" [size]="18" /></span>
+            <span class="settings-link__body">
+              <span class="settings-link__title">Music folder</span>
+              <span class="settings-link__desc">Scan an existing read-only library</span>
+            </span>
+            <app-icon name="chevron-left" [size]="16" class="settings-link__arrow" />
+          </a>
+
           <a class="settings-link" routerLink="/app/settings/users">
             <span class="settings-link__mark"><app-icon name="users" [size]="18" /></span>
             <span class="settings-link__body">

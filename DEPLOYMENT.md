@@ -141,7 +141,7 @@ The default Compose file uses Docker named volumes. To use normal host folders
 instead, use `docker-compose.bind.yml`:
 
 ```bash
-mkdir -p data postgres
+mkdir -p data postgres music
 docker compose -f docker-compose.bind.yml pull
 docker compose -f docker-compose.bind.yml up -d
 ```
@@ -160,7 +160,23 @@ handles its own data folder. Keep PostgreSQL on local storage and use `:Z` on
 the mounts if SELinux is enabled. See the main README for the full host-folder
 example.
 
-## 8. Backups
+## 8. Existing read-only music folder
+
+Mount a host music folder read-only:
+
+```yaml
+volumes:
+  - "${MUSIC_DIR:-./music}:/music:ro"
+```
+
+Then, as an administrator, open **Settings → Music folder** and click
+**Scan library**. Files are indexed in place. Deleting a scanned track from
+Modulate does not delete the original file.
+
+The scanner uses ffprobe and reads common tags plus sidecar/embedded artwork.
+There is currently no automatic filesystem watcher.
+
+## 9. Backups
 
 Install the systemd timer:
 

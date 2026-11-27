@@ -70,6 +70,8 @@ const schema = z.object({
   MAX_INGEST_ITEMS: z.coerce.number().int().min(1).max(2000).default(200),
   YTDLP_PATH: z.string().min(1).default('yt-dlp'),
   FFMPEG_PATH: z.string().min(1).default('ffmpeg'),
+  FFPROBE_PATH: z.string().min(1).default('ffprobe'),
+  MUSIC_ROOT: z.string().min(1).default('/music'),
   STREAM_TTL_SECONDS: z.coerce.number().int().min(60).max(86_400).default(21_600),
 });
 
@@ -91,6 +93,7 @@ module.exports = {
   APP_SLUG: 'modulate',
   DATA_DIR: dataDir,
   MEDIA_ROOT: mediaRoot,
+  MUSIC_ROOT: path.resolve(process.env.MUSIC_ROOT || '/music'),
   SESSION_SECRET: sessionSecret,
   STREAM_SECRET: streamSecret,
   isProduction: nodeEnv === 'production',

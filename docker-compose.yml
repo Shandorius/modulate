@@ -13,8 +13,10 @@ services:
       DATA_DIR: /data
       PUID: ${PUID:-1000}
       PGID: ${PGID:-1000}
+      MUSIC_ROOT: /music
     volumes:
       - modulate_data:/data
+      - ${MUSIC_DIR:-./music}:/music:ro
     depends_on:
       db:
         condition: service_healthy

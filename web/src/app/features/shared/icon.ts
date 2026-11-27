@@ -24,6 +24,7 @@ export type IconName =
   | 'bell'
   | 'more'
   | 'external'
+  | 'trash'
   | 'check';
 
 @Component({
@@ -133,6 +134,10 @@ export type IconName =
         @case ('external') {
           <path d="M14 4h6v6M20 4l-9 9" />
           <path d="M18 13v6H5V6h6" />
+        }
+        @case ('trash') {
+          <path d="M4 7h16M9 7V4h6v3M6.5 7l1 14h9l1-14" />
+          <path d="M10 11v6M14 11v6" />
         }
         @case ('check') {
           <path d="m5 12 4 4L19 6" />

@@ -34,6 +34,7 @@ function presentTrack(row, baseUrl = '') {
     fileSizeBytes: Number(row.file_size_bytes || 0),
     isFavorite: Boolean(row.is_favorite),
     createdBy: row.created_by,
+    storageKind: row.storage_kind || 'managed',
     sourceUrl: row.source_url,
     sourceKind: row.source_kind,
     createdAt: row.created_at,
@@ -245,9 +246,14 @@ async function remove(userId, trackId, isAdmin = false) {
   if (!isAdmin && !row.created_by) {
     throw forbidden('Only an administrator can delete this library track.');
   }
+  if (row.storage_kind === 'external' && !isAdmin) {
+    throw forbidden('Only an administrator can remove scanned library tracks.');
+  }
   await pool.query('DELETE FROM tracks WHERE id = $1', [trackId]);
-  await mediaService.removeTrackFiles(row);
-  return { id: trackId };
+  if (row.storage_kind !== 'external') {
+    await mediaService.removeTrackFiles(row);
+  }
+  return { id: trackId, storageKind: row.storage_kind || 'managed' };
 }
 
 async function summary(userId, baseUrl = '') {

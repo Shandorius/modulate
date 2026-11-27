@@ -53,6 +53,7 @@ export interface Track {
   fileSizeBytes: number;
   isFavorite: boolean;
   createdBy: string | null;
+  storageKind: 'managed' | 'external';
   sourceUrl: string | null;
   sourceKind: string;
   createdAt: string;

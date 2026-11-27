@@ -71,6 +71,17 @@ import { Icon } from './icon';
         >
           <app-icon name="queue" [size]="17" />
         </button>
+        @if (canDelete()) {
+          <button
+            class="icon-btn icon-btn--quiet"
+            type="button"
+            title="Delete track"
+            aria-label="Delete track"
+            (click)="delete.emit(track())"
+          >
+            <app-icon name="trash" [size]="16" />
+          </button>
+        }
         @if (removable()) {
           <button
             class="icon-btn icon-btn--quiet"
@@ -94,10 +105,12 @@ export class TrackRow {
   readonly index = input<number | null>(null);
   readonly removable = input(false);
   readonly showAdd = input(false);
+  readonly canDelete = input(false);
 
   readonly play = output<Track>();
   readonly queue = output<Track>();
   readonly favorite = output<Track>();
   readonly add = output<Track>();
   readonly remove = output<Track>();
+  readonly delete = output<Track>();
 }

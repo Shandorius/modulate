@@ -84,6 +84,14 @@ export const routes: Routes = [
               ),
           },
           {
+            path: 'library',
+            canActivate: [adminGuard],
+            loadComponent: () =>
+              import('./features/settings/library-source-page').then(
+                (m) => m.SettingsLibrarySourcePage,
+              ),
+          },
+          {
             path: 'users',
             canActivate: [adminGuard],
             loadComponent: () =>

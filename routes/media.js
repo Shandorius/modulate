@@ -11,7 +11,7 @@ async function signedTrack(req, kind) {
   const { trackId } = req.params;
   const { exp, sig } = req.query;
   const { rows } = await pool.query(
-    'SELECT id, file_path, artwork_path, mime_type FROM tracks WHERE id = $1',
+    'SELECT id, file_path, artwork_path, mime_type, storage_kind, library_source_id FROM tracks WHERE id = $1',
     [trackId],
   );
   const track = rows[0];
@@ -30,7 +30,7 @@ router.get('/stream/:trackId', async (req, res, next) => {
         .status(403)
         .json({ error: { code: 'INVALID_STREAM', message: 'This media link has expired.' } });
     }
-    const absolute = mediaService.resolveMediaPath(track.file_path);
+    const absolute = await mediaService.resolveTrackAudio(track);
     if (!absolute || !fs.existsSync(absolute)) {
       return res
         .status(404)

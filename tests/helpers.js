@@ -27,6 +27,9 @@ process.env.INGEST_WORKER_ENABLED = 'false';
 process.env.MEDIA_ROOT =
   process.env.TEST_MEDIA_ROOT ||
   path.join(os.tmpdir(), 'modulate-test-media');
+process.env.MUSIC_ROOT =
+  process.env.TEST_MUSIC_ROOT ||
+  path.join(os.tmpdir(), 'modulate-test-music');
 process.env.DATA_DIR = path.join(os.tmpdir(), 'modulate-test-data');
 
 const request = require('supertest');
@@ -36,6 +39,7 @@ const { migrate } = require('../db/migrate');
 
 function ensureMediaRoot() {
   fs.mkdirSync(process.env.MEDIA_ROOT, { recursive: true });
+  fs.mkdirSync(process.env.MUSIC_ROOT, { recursive: true });
 }
 
 async function resetDatabase() {

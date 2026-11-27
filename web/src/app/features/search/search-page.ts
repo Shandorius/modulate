@@ -2,6 +2,7 @@ import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { LibraryService } from '../../core/library.service';
 import { AlbumSummary, Playlist, Track } from '../../core/models';
 import { PlayerService } from '../../core/player.service';
@@ -69,9 +70,11 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
                 @for (track of tracks(); track track.id) {
                   <app-track-row
                     [track]="track"
+                    [canDelete]="canDelete(track)"
                     (play)="play($event)"
                     (queue)="queue($event)"
                     (favorite)="favorite($event)"
+                    (delete)="deleteTrack($event)"
                   />
                 }
               </div>
@@ -146,6 +149,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
 })
 export class SearchPage implements OnInit, OnDestroy {
   readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
   private readonly library = inject(LibraryService);
   private readonly player = inject(PlayerService);
   private readonly toast = inject(ToastService);
@@ -201,6 +205,30 @@ export class SearchPage implements OnInit, OnDestroy {
 
   async queue(track: Track): Promise<void> {
     await this.player.enqueue(track);
+  }
+
+  canDelete(track: Track): boolean {
+    return (
+      this.auth.isAdmin() ||
+      (track.storageKind === 'managed' &&
+        track.createdBy === this.auth.user()?.id)
+    );
+  }
+
+  async deleteTrack(track: Track): Promise<void> {
+    const scanned = track.storageKind === 'external';
+    const message = scanned
+      ? `Remove “${track.title}” from Modulate? The original file in the music folder stays untouched.`
+      : `Delete “${track.title}” and its downloaded file? This cannot be undone.`;
+    if (!window.confirm(message)) return;
+    try {
+      await this.library.deleteTrack(track.id);
+      this.tracks.update((tracks) => tracks.filter((item) => item.id !== track.id));
+      await this.library.load(true);
+      this.toast.show(scanned ? 'Removed from the library.' : 'Track deleted.');
+    } catch (error) {
+      this.toast.show((error as Error).message);
+    }
   }
 
   async favorite(track: Track): Promise<void> {
