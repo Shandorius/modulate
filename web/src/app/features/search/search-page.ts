@@ -7,12 +7,13 @@ import { AlbumSummary, Playlist, Track } from '../../core/models';
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
 import { TrackRow } from '../shared/track-row';
+import { Icon } from '../shared/icon';
 
 type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
 
 @Component({
   selector: 'app-search-page',
-  imports: [FormsModule, RouterLink, TrackRow],
+  imports: [FormsModule, RouterLink, TrackRow, Icon],
   template: `
     <main class="page">
       <header class="page-header">
@@ -23,7 +24,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
       </header>
 
       <div class="search-box">
-        <span class="search-box__icon" aria-hidden="true">⌕</span>
+        <span class="search-box__icon" aria-hidden="true"><app-icon name="search" [size]="20" /></span>
         <input
           class="search-box__input"
           name="query"
@@ -34,7 +35,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
           aria-label="Search your library"
         />
         @if (query()) {
-          <button class="icon-btn" type="button" aria-label="Clear search" (click)="setQuery('')">×</button>
+          <button class="icon-btn" type="button" aria-label="Clear search" (click)="setQuery('')"><app-icon name="close" [size]="17" /></button>
         }
       </div>
 
@@ -88,7 +89,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
               <div class="result-list">
                 @for (playlist of playlists(); track playlist.id) {
                   <a class="result-item" [routerLink]="['/app/collection/playlist', playlist.id]">
-                    <span class="result-item__mark">≡</span>
+                    <span class="result-item__mark"><app-icon name="library" [size]="17" /></span>
                     <span class="result-item__body">
                       <strong>{{ playlist.name }}</strong>
                       <small>
@@ -119,7 +120,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
                       @if (album.artworkUrl) {
                         <img [src]="api.url(album.artworkUrl)" [alt]="album.album" />
                       } @else {
-                        <span class="cover-fallback" aria-hidden="true">◉</span>
+                        <span class="cover-fallback" aria-hidden="true"><app-icon name="music" [size]="18" /></span>
                       }
                     </div>
                     <h3>{{ album.album }}</h3>
@@ -133,7 +134,7 @@ type Filter = 'all' | 'tracks' | 'playlists' | 'albums';
 
         @if (!tracks().length && !playlists().length && !albums().length) {
           <section class="empty-state">
-            <span class="empty-state__mark" aria-hidden="true">⌕</span>
+            <span class="empty-state__mark" aria-hidden="true"><app-icon name="search" [size]="34" /></span>
             <h2>No match in this library.</h2>
             <p>Try a different title, artist, or album. Search only looks at music you already host.</p>
             <a class="btn btn--ghost" routerLink="/app/settings/ingest">Add music</a>

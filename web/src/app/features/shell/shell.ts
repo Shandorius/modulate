@@ -8,21 +8,22 @@ import { LocalNotificationService } from '../../core/local-notification.service'
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
 import { PlayerBar } from '../shared/player-bar';
+import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, PlayerBar],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, PlayerBar, Icon],
   template: `
     <div class="app-shell">
       <header class="topbar">
         <div class="topbar__inner">
           <a class="brand" routerLink="/app/home">
-            <span class="brand__mark" aria-hidden="true">◉</span>
+            <span class="brand__mark" aria-hidden="true"><app-icon name="music" [size]="15" /></span>
             <span>{{ appName }}</span>
           </a>
           <div class="topbar__meta">
             <span class="pill pill--quiet">Self-hosted</span>
-            <a class="icon-btn icon-btn--bordered" routerLink="/app/settings" aria-label="Settings">⚙</a>
+            <a class="icon-btn icon-btn--bordered" routerLink="/app/settings" aria-label="Settings"><app-icon name="settings" [size]="17" /></a>
           </div>
         </div>
       </header>
@@ -35,19 +36,19 @@ import { PlayerBar } from '../shared/player-bar';
 
       <nav class="bottom-nav" aria-label="Main navigation">
         <a class="nav-item" routerLink="/app/home" routerLinkActive="is-active" aria-label="Home">
-          <span class="nav-item__icon" aria-hidden="true">⌂</span>
+          <span class="nav-item__icon" aria-hidden="true"><app-icon name="home" [size]="20" /></span>
           <span>Home</span>
         </a>
         <a class="nav-item" routerLink="/app/search" routerLinkActive="is-active" aria-label="Search">
-          <span class="nav-item__icon" aria-hidden="true">⌕</span>
+          <span class="nav-item__icon" aria-hidden="true"><app-icon name="search" [size]="20" /></span>
           <span>Search</span>
         </a>
         <a class="nav-item" routerLink="/app/library" routerLinkActive="is-active" aria-label="Library">
-          <span class="nav-item__icon" aria-hidden="true">▤</span>
+          <span class="nav-item__icon" aria-hidden="true"><app-icon name="library" [size]="20" /></span>
           <span>Library</span>
         </a>
         <a class="nav-item" routerLink="/app/settings" routerLinkActive="is-active" aria-label="Settings">
-          <span class="nav-item__icon" aria-hidden="true">⚙</span>
+          <span class="nav-item__icon" aria-hidden="true"><app-icon name="settings" [size]="20" /></span>
           <span>Settings</span>
         </a>
       </nav>

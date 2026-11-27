@@ -7,10 +7,11 @@ import { Track } from '../../core/models';
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
 import { TrackRow } from '../shared/track-row';
+import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, TrackRow],
+  imports: [RouterLink, TrackRow, Icon],
   template: `
     <main class="page">
       <section class="home-hero">
@@ -37,10 +38,13 @@ import { TrackRow } from '../shared/track-row';
             <a class="btn btn--ghost" routerLink="/app/settings/ingest">Add music</a>
           </div>
         </div>
-        <div class="home-hero__ornament" aria-hidden="true">
-          <div class="groove-disc">
-            <span class="groove-disc__label">MOD</span>
-          </div>
+        <div class="home-hero__art" aria-hidden="true">
+          @if (summary()?.recentlyAdded?.[0]?.artworkUrl) {
+            <div class="hero-aura"></div>
+            <img [src]="api.url(summary()!.recentlyAdded[0].artworkUrl)" alt="" />
+          } @else {
+            <div class="hero-cover-placeholder"><app-icon name="music" [size]="46" /></div>
+          }
         </div>
       </section>
 
@@ -50,7 +54,7 @@ import { TrackRow } from '../shared/track-row';
             @if (current.artworkUrl) {
               <img [src]="api.url(current.artworkUrl)" [alt]="current.album || current.title" />
             } @else {
-              <span class="cover-fallback" aria-hidden="true">♪</span>
+              <span class="cover-fallback" aria-hidden="true"><app-icon name="music" [size]="22" /></span>
             }
           </div>
           <div class="continue-card__body">
@@ -75,7 +79,7 @@ import { TrackRow } from '../shared/track-row';
         </section>
       } @else if (!library.tracks().length) {
         <section class="empty-state">
-          <span class="empty-state__mark" aria-hidden="true">◉</span>
+          <span class="empty-state__mark" aria-hidden="true"><app-icon name="music" [size]="34" /></span>
           <h2>Nothing on the shelf yet.</h2>
           <p>Add a track or playlist URL. Modulate will fetch the audio, artwork, and metadata into your own library.</p>
           <a class="btn btn--primary" routerLink="/app/settings/ingest">Add your first music</a>
@@ -117,7 +121,7 @@ import { TrackRow } from '../shared/track-row';
                     @if (playlist.artworkUrl) {
                       <img [src]="api.url(playlist.artworkUrl)" [alt]="playlist.name" />
                     } @else {
-                      <span class="cover-fallback" aria-hidden="true">≡</span>
+                      <span class="cover-fallback" aria-hidden="true"><app-icon name="library" [size]="18" /></span>
                     }
                   </div>
                   <h3>{{ playlist.name }}</h3>

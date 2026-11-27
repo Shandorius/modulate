@@ -1,5 +1,6 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
 import { ApiService } from './api.service';
+import { AuraService } from './aura.service';
 import { PlayerState, Track } from './models';
 import { ToastService } from './toast.service';
 
@@ -19,6 +20,7 @@ function storedClientId(): string {
 @Injectable({ providedIn: 'root' })
 export class PlayerService {
   private readonly api = inject(ApiService);
+  private readonly aura = inject(AuraService);
   private readonly toast = inject(ToastService);
   private readonly audio = new Audio();
   private readonly clientId = storedClientId();
@@ -118,6 +120,7 @@ export class PlayerService {
 
     if (!data.current) {
       this.lastRevision = revision;
+      this.aura.setFromUrl(null);
       if (this.loadedTrackId) {
         this.audio.pause();
         this.audio.removeAttribute('src');
@@ -132,6 +135,9 @@ export class PlayerService {
     if (previousTrack !== data.current.id) {
       this.lastRevision = revision;
       this.loadedTrackId = data.current.id;
+      this.aura.setFromUrl(
+        data.current.artworkUrl ? this.api.url(data.current.artworkUrl) : null,
+      );
       this.volume.set(data.state.volume);
       this.audio.volume = data.state.volume;
       this.audio.src = this.api.url(data.current.streamUrl);

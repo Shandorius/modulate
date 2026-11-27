@@ -5,14 +5,15 @@ import { ApiService } from '../../core/api.service';
 import { APP_NAME } from '../../core/app-config';
 import { AuthService } from '../../core/auth.service';
 import { IngestService } from '../../core/ingest.service';
+import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-onboarding-page',
-  imports: [FormsModule],
+  imports: [FormsModule, Icon],
   template: `
     <main class="onboarding">
       <div class="onboarding__top">
-        <span class="brand"><span class="brand__mark" aria-hidden="true">◉</span> {{ appName }}</span>
+        <span class="brand"><span class="brand__mark" aria-hidden="true"><app-icon name="music" [size]="15" /></span> {{ appName }}</span>
         <span class="pill pill--quiet">One last step</span>
       </div>
 

@@ -3,10 +3,11 @@ import { RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { Track } from '../../core/models';
 import { PlayerService } from '../../core/player.service';
+import { Icon } from './icon';
 
 @Component({
   selector: 'app-track-row',
-  imports: [RouterLink],
+  imports: [RouterLink, Icon],
   template: `
     <article class="track-row" [class.is-current]="player.current()?.id === track().id">
       <button
@@ -15,14 +16,14 @@ import { PlayerService } from '../../core/player.service';
         [attr.aria-label]="'Play ' + track().title"
         (click)="play.emit(track())"
       >
-        <span aria-hidden="true">▶</span>
+        <app-icon name="play" [size]="13" />
       </button>
 
       <div class="track-row__art">
         @if (track().artworkUrl) {
           <img [src]="api.url(track().artworkUrl)" [alt]="track().album || track().title" />
         } @else {
-          <span class="cover-fallback" aria-hidden="true">♪</span>
+          <span class="cover-fallback" aria-hidden="true"><app-icon name="music" [size]="18" /></span>
         }
       </div>
 
@@ -48,7 +49,7 @@ import { PlayerService } from '../../core/player.service';
             aria-label="Add to playlist"
             (click)="add.emit(track())"
           >
-            +
+            <app-icon name="plus" [size]="17" />
           </button>
         }
         <button
@@ -59,7 +60,7 @@ import { PlayerService } from '../../core/player.service';
           [attr.aria-label]="track().isFavorite ? 'Remove from favourites' : 'Add to favourites'"
           (click)="favorite.emit(track())"
         >
-          {{ track().isFavorite ? '♥' : '♡' }}
+          <app-icon [name]="track().isFavorite ? 'heart-filled' : 'heart'" [size]="17" />
         </button>
         <button
           class="icon-btn"
@@ -68,7 +69,7 @@ import { PlayerService } from '../../core/player.service';
           aria-label="Add to queue"
           (click)="queue.emit(track())"
         >
-          ≡+
+          <app-icon name="queue" [size]="17" />
         </button>
         @if (removable()) {
           <button
@@ -78,7 +79,7 @@ import { PlayerService } from '../../core/player.service';
             aria-label="Remove from playlist"
             (click)="remove.emit(track())"
           >
-            ×
+            <app-icon name="close" [size]="16" />
           </button>
         }
       </div>

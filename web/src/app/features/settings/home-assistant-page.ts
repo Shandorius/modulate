@@ -3,10 +3,11 @@ import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HomeAssistantService } from '../../core/home-assistant.service';
 import { ToastService } from '../../core/toast.service';
+import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-settings-home-assistant-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, Icon],
   template: `
     <main class="page">
       <header class="page-header">
@@ -59,7 +60,7 @@ import { ToastService } from '../../core/toast.service';
           <div class="result-list">
             @for (token of integration()!.tokens; track token.id) {
               <div class="result-item">
-                <span class="result-item__mark">⌂</span>
+                <span class="result-item__mark"><app-icon name="home" [size]="17" /></span>
                 <span class="result-item__body">
                   <strong>{{ token.label }}</strong>
                   <small>{{ token.hint }}… · created {{ formatDate(token.createdAt) }}</small>

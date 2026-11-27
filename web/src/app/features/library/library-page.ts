@@ -8,12 +8,13 @@ import { Playlist, Track } from '../../core/models';
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
 import { TrackRow } from '../shared/track-row';
+import { Icon } from '../shared/icon';
 
 type Tab = 'tracks' | 'playlists' | 'albums';
 
 @Component({
   selector: 'app-library-page',
-  imports: [FormsModule, RouterLink, TrackRow],
+  imports: [FormsModule, RouterLink, TrackRow, Icon],
   template: `
     <main class="page">
       <header class="page-header">
@@ -91,7 +92,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
           </section>
         } @else {
           <section class="empty-state">
-            <span class="empty-state__mark" aria-hidden="true">▤</span>
+            <span class="empty-state__mark" aria-hidden="true"><app-icon name="library" [size]="34" /></span>
             <h2>Your library is quiet.</h2>
             <p>Add a URL above, or open Settings → Imports to watch a job and retry it.</p>
           </section>
@@ -115,7 +116,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                     @if (playlist.artworkUrl) {
                       <img [src]="api.url(playlist.artworkUrl)" [alt]="playlist.name" />
                     } @else {
-                      <span class="cover-fallback" aria-hidden="true">≡</span>
+                      <span class="cover-fallback" aria-hidden="true"><app-icon name="library" [size]="18" /></span>
                     }
                     @if (playlist.visibility === 'public') {
                       <span class="playlist-card__badge">Public</span>
@@ -142,7 +143,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                     @if (playlist.artworkUrl) {
                       <img [src]="api.url(playlist.artworkUrl)" [alt]="playlist.name" />
                     } @else {
-                      <span class="cover-fallback" aria-hidden="true">≡</span>
+                      <span class="cover-fallback" aria-hidden="true"><app-icon name="library" [size]="18" /></span>
                     }
                     <span class="playlist-card__badge">Shared</span>
                   </div>
@@ -165,7 +166,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                     @if (playlist.artworkUrl) {
                       <img [src]="api.url(playlist.artworkUrl)" [alt]="playlist.name" />
                     } @else {
-                      <span class="cover-fallback" aria-hidden="true">≡</span>
+                      <span class="cover-fallback" aria-hidden="true"><app-icon name="library" [size]="18" /></span>
                     }
                     <span class="playlist-card__badge">Public</span>
                   </div>
@@ -186,7 +187,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                     @if (album.artworkUrl) {
                       <img [src]="api.url(album.artworkUrl)" [alt]="album.album" />
                     } @else {
-                      <span class="cover-fallback" aria-hidden="true">◉</span>
+                      <span class="cover-fallback" aria-hidden="true"><app-icon name="music" [size]="18" /></span>
                     }
                   </div>
                   <h3>{{ album.album }}</h3>
@@ -208,13 +209,13 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                 <p class="eyebrow">Add to playlist</p>
                 <h2>{{ track.title }}</h2>
               </div>
-              <button class="icon-btn" type="button" aria-label="Close" (click)="addingTrack.set(null)">×</button>
+              <button class="icon-btn" type="button" aria-label="Close" (click)="addingTrack.set(null)"><app-icon name="close" [size]="18" /></button>
             </header>
             @if (library.playlists().length) {
               <div class="result-list">
                 @for (playlist of library.playlists(); track playlist.id) {
                   <button class="result-item result-item--button" type="button" (click)="addToPlaylist(playlist, track)">
-                    <span class="result-item__mark">≡</span>
+                    <span class="result-item__mark"><app-icon name="library" [size]="17" /></span>
                     <span class="result-item__body">
                       <strong>{{ playlist.name }}</strong>
                       <small>{{ playlist.trackCount }} tracks</small>

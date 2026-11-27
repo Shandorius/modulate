@@ -2,6 +2,7 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
+import { AuraService } from '../../core/aura.service';
 import { DirectoryService } from '../../core/directory.service';
 import { LibraryService } from '../../core/library.service';
 import {
@@ -13,10 +14,11 @@ import {
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
 import { TrackRow } from '../shared/track-row';
+import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-collection-page',
-  imports: [FormsModule, RouterLink, TrackRow],
+  imports: [FormsModule, RouterLink, TrackRow, Icon],
   template: `
     <main class="page">
       @if (loading()) {
@@ -37,11 +39,11 @@ import { TrackRow } from '../shared/track-row';
             @if (artworkUrl()) {
               <img [src]="api.url(artworkUrl())" [alt]="title()" />
             } @else {
-              <span class="cover-fallback" aria-hidden="true">{{ isPlaylist() ? '≡' : '◉' }}</span>
+              <span class="cover-fallback" aria-hidden="true"><app-icon name="music" [size]="34" /></span>
             }
           </div>
           <div class="collection-head__body">
-            <a class="settings-back" routerLink="/app/library">‹ Library</a>
+            <a class="settings-back" routerLink="/app/library"><app-icon name="chevron-left" [size]="14" /> Library</a>
             <p class="eyebrow">{{ isPlaylist() ? (playlist()?.canEdit ? 'Your playlist' : playlist()?.visibility === 'public' ? 'Public playlist' : 'Shared playlist') : 'Album' }}</p>
             <h1 class="display collection-head__title">{{ title() }}</h1>
             <p class="muted">{{ subtitle() }}</p>
@@ -57,7 +59,7 @@ import { TrackRow } from '../shared/track-row';
               @if (isPlaylist() && playlist()?.canEdit) {
                 <button class="btn btn--ghost" type="button" (click)="showAdd.set(true)">Add tracks</button>
                 <button class="btn btn--quiet" type="button" (click)="startRename()">Rename</button>
-                <button class="btn btn--quiet" type="button" (click)="openShare()">Share</button>
+                <button class="btn btn--quiet" type="button" (click)="openShare()"><app-icon name="share" [size]="16" /> Share</button>
               }
             </div>
           </div>
@@ -96,7 +98,7 @@ import { TrackRow } from '../shared/track-row';
           </div>
         } @else {
           <section class="empty-state">
-            <span class="empty-state__mark" aria-hidden="true">◉</span>
+            <span class="empty-state__mark" aria-hidden="true"><app-icon name="music" [size]="34" /></span>
             <h2>{{ isPlaylist() ? 'This playlist is empty.' : 'This album has no tracks.' }}</h2>
             <p>{{ isPlaylist() ? 'Add tracks from your library to start shaping it.' : 'Import more music to fill this album.' }}</p>
             @if (isPlaylist() && playlist()?.canEdit) {
@@ -114,7 +116,7 @@ import { TrackRow } from '../shared/track-row';
                 <p class="eyebrow">From the shared library</p>
                 <h2>Add tracks</h2>
               </div>
-              <button class="icon-btn" type="button" aria-label="Close" (click)="showAdd.set(false)">×</button>
+              <button class="icon-btn" type="button" aria-label="Close" (click)="showAdd.set(false)"><app-icon name="close" [size]="18" /></button>
             </header>
             @if (availableTracks().length) {
               <div class="track-list track-list--compact">
@@ -144,7 +146,7 @@ import { TrackRow } from '../shared/track-row';
                 <p class="eyebrow">Who can listen?</p>
                 <h2>Share “{{ list.name }}”</h2>
               </div>
-              <button class="icon-btn" type="button" aria-label="Close" (click)="shareOpen.set(false)">×</button>
+              <button class="icon-btn" type="button" aria-label="Close" (click)="shareOpen.set(false)"><app-icon name="close" [size]="18" /></button>
             </header>
 
             <div class="share-visibility card">
@@ -175,7 +177,7 @@ import { TrackRow } from '../shared/track-row';
               <div class="result-list">
                 @for (share of shares(); track share.userId) {
                   <div class="result-item">
-                    <span class="result-item__mark">☺</span>
+                    <span class="result-item__mark"><app-icon name="users" [size]="17" /></span>
                     <span class="result-item__body">
                       <strong>{{ share.displayName || share.email }}</strong>
                       <small>{{ share.email }}</small>
@@ -197,6 +199,7 @@ export class CollectionPage implements OnInit {
   readonly api = inject(ApiService);
   readonly player = inject(PlayerService);
   private readonly library = inject(LibraryService);
+  private readonly aura = inject(AuraService);
   private readonly directory = inject(DirectoryService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -246,6 +249,7 @@ export class CollectionPage implements OnInit {
         this.title.set(playlist.name);
         this.subtitle.set(playlist.description || 'A playlist from the library.');
         this.artworkUrl.set(playlist.artworkUrl);
+        this.aura.setFromUrl(playlist.artworkUrl ? this.api.url(playlist.artworkUrl) : null);
         this.playlistName = playlist.name;
       } else {
         const album = await this.library.getAlbum(id);
@@ -254,7 +258,9 @@ export class CollectionPage implements OnInit {
         this.subtitle.set(
           `${album.tracks[0]?.artist || 'Unknown artist'} · ${album.tracks.length} tracks`,
         );
-        this.artworkUrl.set(album.tracks.find((track) => track.artworkUrl)?.artworkUrl || null);
+        const albumArtwork = album.tracks.find((track) => track.artworkUrl)?.artworkUrl || null;
+        this.artworkUrl.set(albumArtwork);
+        this.aura.setFromUrl(albumArtwork ? this.api.url(albumArtwork) : null);
       }
     } catch (error) {
       this.error.set((error as Error).message);
