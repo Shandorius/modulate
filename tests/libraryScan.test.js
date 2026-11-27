@@ -82,6 +82,11 @@ test('an admin can scan a read-only music folder and remove the index entry', as
   assert.equal(track.artist, 'Scanner Artist');
   assert.equal(track.storageKind, 'external');
 
+  await request(app)
+    .get(track.streamUrl)
+    .set('Range', 'bytes=0-3')
+    .expect(206);
+
   const { rows } = await pool.query(
     'SELECT file_path, storage_kind, library_source_id FROM tracks WHERE id = $1',
     [track.id],
