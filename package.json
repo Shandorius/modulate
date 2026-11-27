@@ -1,0 +1,42 @@
+{
+  "name": "modulate-api",
+  "version": "0.1.0",
+  "description": "Self-hosted music library and player",
+  "main": "app.js",
+  "private": true,
+  "scripts": {
+    "start": "node app.js",
+    "dev": "node --watch app.js",
+    "migrate": "node db/migrate.js",
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test:web": "if [ -d web ]; then npm --prefix web test -- --watch=false; else npm --prefix web-template test -- --watch=false; fi",
+    "build:web": "if [ -d web ]; then npm --prefix web run build; else npm --prefix web-template run build; fi",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d db && npm run migrate",
+    "build": "npm run build:web",
+    "test:all": "npm test && npm run test:web && npm run build"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "argon2": "^0.45.1",
+    "compression": "^1.8.2",
+    "connect-pg-simple": "^10.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.2",
+    "express-session": "^1.19.0",
+    "helmet": "^8.1.0",
+    "js-yaml": "^4.1.0",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "pg": "^8.23.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "supertest": "^7.3.1"
+  }
+}

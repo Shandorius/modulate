@@ -1,0 +1,53 @@
+name: modulate
+
+services:
+  app:
+    build: .
+    image: modulate:local
+    container_name: modulate-app
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    environment:
+      DATABASE_URL: postgres://modulate:${POSTGRES_PASSWORD}@db:5432/modulate
+      DATA_DIR: /data
+    volumes:
+      - modulate_data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  db:
+    image: postgres:17-alpine
+    container_name: modulate-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: modulate
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: modulate
+    ports:
+      - "127.0.0.1:${DB_PORT:-5439}:5432"
+    volumes:
+      - modulate_pgdata:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U modulate -d modulate"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  modulate_data:
+  modulate_pgdata:

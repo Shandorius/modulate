@@ -1,0 +1,82 @@
+# ============================================================
+# Portable Passport Auth Module — application-specific mapping
+# ============================================================
+# Copy the auth/ folder into another Node/Express project and edit only this
+# file. Every ${VARIABLE} is replaced from process.env at startup.
+# ============================================================
+
+app:
+  session_secret: "${SESSION_SECRET}"
+  session_expiration: 1000 * 60 * 60 * 24 * 30 * 3 # 3 months
+  cookie_name: "${SESSION_COOKIE_NAME:-app.sid}"
+  auto_create_session_table: true
+  roles:
+    - admin
+    - user
+
+# 1. Login strategies
+strategies:
+  local:
+    enabled: true
+    usernameField: "email"
+    passwordField: "password"
+  google:
+    enabled: ${GOOGLE_AUTH_ENABLED}
+    client_id: "${GOOGLE_CLIENT_ID}"
+    client_secret: "${GOOGLE_CLIENT_SECRET}"
+    callback_url: "${GOOGLE_CALLBACK_URL}"
+
+# 2. Redirects (used by OAuth flows or browser-based integrations)
+redirects:
+  login_success: "/auth/success"
+  login_failure: "/login"
+  logout_success: "/auth/logout-success"
+
+# 3. Database
+database:
+  connection:
+    host: "${DB_HOST}"
+    user: "${DB_USER}"
+    password: "${DB_PASSWORD}"
+    port: "${DB_PORT}"
+    database: "${DB_NAME}"
+
+  tables:
+    users: "users"
+
+  # Logical field name -> physical PostgreSQL column.
+  # Optional mappings may be removed; the module only writes mapped fields.
+  columns:
+    id: "id"
+    email: "email"
+    password: "password_hash"
+    displayName: "display_name"
+    userType: "user_type"
+    lastLogin: "last_active_at"
+
+# 4. Portable mobile bearer tokens
+# Mounts /auth/mobile/* and exposes requireAuth / requireBearer guards.
+# The module has no dependencies outside auth/ and the injected pg pool.
+mobile:
+  enabled: ${MOBILE_AUTH_ENABLED:-true}
+  mount_path: "/auth/mobile"
+  token_prefix: "${MOBILE_TOKEN_PREFIX:-app_}"
+  token_bytes: 32
+  ttl_days: ${MOBILE_TOKEN_TTL_DAYS:-90}
+  max_tokens_per_user: 10
+  touch_interval_minutes: 60
+  cleanup_retention_days: 30
+  auto_create_table: ${MOBILE_AUTH_AUTO_CREATE_TABLE:-true}
+  table: "api_tokens"
+  columns:
+    id: "id"
+    userId: "user_id"
+    tokenHash: "token_hash"
+    tokenHint: "token_hint"
+    label: "label"
+    platform: "platform"
+    deviceId: "device_id"
+    lastUsedAt: "last_used_at"
+    expiresAt: "expires_at"
+    revokedAt: "revoked_at"
+    createdAt: "created_at"
