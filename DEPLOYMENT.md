@@ -22,8 +22,16 @@ ghcr.io/<owner>/modulate:<version>
 ghcr.io/<owner>/modulate:sha-<commit>
 ```
 
-A public package is pullable without credentials. For a private package, log
-in on the server:
+A public package is pullable without credentials. GHCR packages are private by
+default after the first publish. Open the package settings once and set
+visibility to **Public**:
+
+```text
+https://github.com/users/<owner>/packages/container/package/modulate
+```
+
+For a private package, log in on the server with a token that has
+`read:packages`:
 
 ```bash
 echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-user> --password-stdin
