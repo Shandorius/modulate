@@ -142,8 +142,6 @@ instead, use `docker-compose.bind.yml`:
 
 ```bash
 mkdir -p data postgres
-sudo chown -R 1000:1000 data
-sudo chown -R 70:70 postgres
 docker compose -f docker-compose.bind.yml pull
 docker compose -f docker-compose.bind.yml up -d
 ```
@@ -155,9 +153,12 @@ It maps:
 ./postgres  → /var/lib/postgresql/data
 ```
 
-The app runs as UID 1000 in the image; PostgreSQL Alpine runs as UID 70. Keep
-the PostgreSQL folder on local storage and use `:Z` on the mounts if SELinux is
-enabled. See the main README for the full host-folder example.
+The app entrypoint repairs `./data` ownership for `PUID`/`PGID` on first start
+and then drops privileges. Defaults are `1000:1000`; set them in `.env` to match
+your host account with `id -u` / `id -g`. PostgreSQL's official entrypoint
+handles its own data folder. Keep PostgreSQL on local storage and use `:Z` on
+the mounts if SELinux is enabled. See the main README for the full host-folder
+example.
 
 ## 8. Backups
 

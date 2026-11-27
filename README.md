@@ -162,6 +162,10 @@ Set:
 POSTGRES_PASSWORD=<generated-hex-password>
 APP_PORT=3000
 MODULATE_IMAGE=ghcr.io/shandorius/modulate:latest
+
+# Optional: match the container user to your host account.
+# PUID=1000
+# PGID=1000
 ```
 
 The relevant storage mapping is:
@@ -172,13 +176,29 @@ volumes:
   - ./postgres:/var/lib/postgresql/data
 ```
 
-Create the folders and set the container user ownership before the first
-start:
+Create the folders:
 
 ```bash
 mkdir -p data postgres
-sudo chown -R 1000:1000 data      # Modulate runs as node UID 1000
-sudo chown -R 70:70 postgres      # postgres:17-alpine runs as UID 70
+```
+
+The app entrypoint repairs `./data` ownership automatically on first start. It
+checks whether `PUID`/`PGID` can write the folder; if not, it runs a one-time
+recursive ownership fix and then drops privileges to that user.
+
+By default `PUID=1000` and `PGID=1000`. To match your host account:
+
+```bash
+id -u
+id -g
+```
+
+Put those values in `.env` if they are different. There is no normal need to
+run `chown` manually. PostgreSQL's official entrypoint handles `./postgres`
+initialization; on unusual filesystems, the fallback is:
+
+```bash
+sudo chown -R 70:70 postgres
 ```
 
 Start:
@@ -208,6 +228,7 @@ Notes:
 - Keep `postgres/` on a local filesystem, not NFS/SMB.
 - On SELinux hosts, use `./data:/data:Z` and
   `./postgres:/var/lib/postgresql/data:Z`.
+- Do not set `PUID=0`; that would run the application as root.
 
 Back up bind-mount installs with:
 

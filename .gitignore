@@ -20,3 +20,5 @@ web/ios/App/build/
 web/ios/App/DerivedData/
 web/ios/App/Pods/
 postgres/
+# Local/private compose override (may contain secrets)
+compose.yml

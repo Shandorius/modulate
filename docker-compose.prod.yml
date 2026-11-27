@@ -10,6 +10,8 @@ services:
     environment:
       DATABASE_URL: postgres://modulate:${POSTGRES_PASSWORD}@db:5432/modulate
       DATA_DIR: /data
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
     volumes:
       - modulate_data:/data
     depends_on:

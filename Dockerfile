@@ -14,6 +14,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
     ffmpeg \
+    gosu \
     python3 \
     python3-pip \
   && pip3 install --break-system-packages --no-cache-dir yt-dlp \
@@ -26,7 +27,9 @@ RUN npm ci --omit=dev
 COPY . .
 COPY --from=web-build /web/dist/web/browser ./public
 
-RUN mkdir -p /data/media \
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+  && mkdir -p /data/media \
   && chown -R node:node /data /app
 
 ENV NODE_ENV=production \
@@ -36,8 +39,9 @@ ENV NODE_ENV=production \
     FFMPEG_PATH=/usr/bin/ffmpeg \
     YTDLP_PATH=/usr/local/bin/yt-dlp
 
-USER node
 EXPOSE 3000
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 HEALTHCHECK --interval=20s --timeout=5s --start-period=30s --retries=5 \
   CMD node -e "fetch('http://localhost:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
