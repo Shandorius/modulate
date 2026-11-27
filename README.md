@@ -64,7 +64,10 @@ Playlist access:
 
 Public does **not** mean anonymous internet access. Anonymous share links are a
 possible later feature. Shared/public playlists are read-only for recipients;
-only the owner can rename, edit, share, unpublish, or delete them.
+only the owner can rename, reorder, edit, share, unpublish, or delete them.
+
+Playlist owners can reorder with drag-and-drop on desktop or the up/down buttons
+on any device. The new order is saved automatically.
 
 ## Screens
 

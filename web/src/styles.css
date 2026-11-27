@@ -2527,3 +2527,34 @@ code,
     flex-direction: column;
   }
 }
+
+/* Playlist reordering ----------------------------------------------------- */
+
+.track-row[draggable="true"] {
+  cursor: grab;
+}
+
+.track-row.is-dragging {
+  opacity: 0.45;
+}
+
+.track-row.is-drag-over {
+  background: rgb(var(--aura-rgb) / 9%);
+  box-shadow: inset 0 2px 0 var(--accent);
+}
+
+.reorder-handle {
+  display: inline-flex;
+  padding: 0 3px;
+  color: var(--faint);
+  cursor: grab;
+}
+
+.track-row__actions .icon-btn:disabled {
+  opacity: 0.25;
+}
+
+.reorder-list .track-row__play {
+  pointer-events: none;
+  opacity: 0.4;
+}

@@ -190,6 +190,20 @@ export class LibraryService {
     return response.data;
   }
 
+  async reorderPlaylist(
+    playlistId: string,
+    trackIds: string[],
+  ): Promise<Playlist> {
+    const response = await this.api.put<{ data: Playlist }>(
+      `/playlists/${playlistId}/order`,
+      { trackIds },
+    );
+    this.playlists.update((items) =>
+      items.map((item) => (item.id === playlistId ? response.data : item)),
+    );
+    return response.data;
+  }
+
   async removeTrack(playlistId: string, trackId: string): Promise<Playlist> {
     const response = await this.api.delete<{ data: Playlist }>(
       `/playlists/${playlistId}/tracks/${trackId}`,

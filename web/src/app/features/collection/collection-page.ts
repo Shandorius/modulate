@@ -1,4 +1,4 @@
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
@@ -59,6 +59,9 @@ import { Icon } from '../shared/icon';
               @if (isPlaylist() && playlist()?.canEdit) {
                 <button class="btn btn--ghost" type="button" (click)="showAdd.set(true)">Add tracks</button>
                 <button class="btn btn--quiet" type="button" (click)="startRename()">Rename</button>
+                <button class="btn btn--quiet" type="button" (click)="toggleReorder()">
+                  <app-icon name="grip" [size]="16" /> {{ reorderMode() ? 'Done' : 'Reorder' }}
+                </button>
                 <button class="btn btn--quiet" type="button" (click)="openShare()"><app-icon name="share" [size]="16" /> Share</button>
               }
             </div>
@@ -84,18 +87,36 @@ import { Icon } from '../shared/icon';
         }
 
         @if (tracks().length) {
-          <div class="track-list">
-            @for (track of tracks(); track track.id) {
-              <app-track-row
-                [track]="track"
-                [removable]="isPlaylist() && (playlist()?.canEdit || false)"
-                (play)="play($event)"
-                (queue)="queue($event)"
-                (favorite)="favorite($event)"
-                (remove)="removeTrack($event)"
-              />
-            }
-          </div>
+          @if (reorderMode()) {
+            <div class="track-list reorder-list">
+              @for (track of tracks(); track track.id; let index = $index) {
+                <app-track-row
+                  [track]="track"
+                  [reorderable]="true"
+                  [reorderIndex]="index"
+                  [canMoveUp]="index > 0"
+                  [canMoveDown]="index < tracks().length - 1"
+                  (moveUp)="moveTrack(index, -1)"
+                  (moveDown)="moveTrack(index, 1)"
+                  (dragStart)="draggedIndex.set($event)"
+                  (dropAt)="dropAt($event)"
+                />
+              }
+            </div>
+          } @else {
+            <div class="track-list">
+              @for (track of tracks(); track track.id) {
+                <app-track-row
+                  [track]="track"
+                  [removable]="isPlaylist() && (playlist()?.canEdit || false)"
+                  (play)="play($event)"
+                  (queue)="queue($event)"
+                  (favorite)="favorite($event)"
+                  (remove)="removeTrack($event)"
+                />
+              }
+            </div>
+          }
         } @else {
           <section class="empty-state">
             <span class="empty-state__mark" aria-hidden="true"><app-icon name="music" [size]="34" /></span>
@@ -195,7 +216,7 @@ import { Icon } from '../shared/icon';
     </main>
   `,
 })
-export class CollectionPage implements OnInit {
+export class CollectionPage implements OnInit, OnDestroy {
   readonly api = inject(ApiService);
   readonly player = inject(PlayerService);
   private readonly library = inject(LibraryService);
@@ -217,6 +238,12 @@ export class CollectionPage implements OnInit {
   readonly renaming = signal(false);
   readonly shareOpen = signal(false);
   readonly shares = signal<PlaylistShare[]>([]);
+  readonly reorderMode = signal(false);
+  readonly draggedIndex = signal<number | null>(null);
+
+  private lastSavedTracks: Track[] = [];
+  private orderTimer: ReturnType<typeof setTimeout> | null = null;
+  private orderSequence = 0;
 
   playlistName = '';
   selectedUserId = '';
@@ -246,6 +273,7 @@ export class CollectionPage implements OnInit {
         const playlist = await this.library.getPlaylist(id);
         this.playlist.set(playlist);
         this.tracks.set(playlist.tracks || []);
+        this.lastSavedTracks = [...(playlist.tracks || [])];
         this.title.set(playlist.name);
         this.subtitle.set(playlist.description || 'A playlist from the library.');
         this.artworkUrl.set(playlist.artworkUrl);
@@ -397,6 +425,78 @@ export class CollectionPage implements OnInit {
           : 'Playlist is private again.',
       );
     } catch (error) {
+      this.toast.show((error as Error).message);
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.flushOrder();
+  }
+
+  toggleReorder(): void {
+    if (this.reorderMode()) {
+      this.flushOrder();
+      this.reorderMode.set(false);
+      return;
+    }
+    this.lastSavedTracks = [...this.tracks()];
+    this.reorderMode.set(true);
+  }
+
+  moveTrack(index: number, delta: number): void {
+    const target = index + delta;
+    if (target < 0 || target >= this.tracks().length) return;
+    this.moveTo(index, target);
+  }
+
+  dropAt(target: number): void {
+    const from = this.draggedIndex();
+    this.draggedIndex.set(null);
+    if (from === null || from === target) return;
+    this.moveTo(from, target);
+  }
+
+  private moveTo(from: number, to: number): void {
+    const next = [...this.tracks()];
+    if (from < 0 || from >= next.length || to < 0 || to >= next.length) return;
+    const [moved] = next.splice(from, 1);
+    next.splice(to, 0, moved);
+    this.tracks.set(next);
+    this.scheduleOrderSave();
+  }
+
+  private scheduleOrderSave(): void {
+    if (this.orderTimer) clearTimeout(this.orderTimer);
+    this.orderTimer = setTimeout(() => {
+      this.orderTimer = null;
+      void this.saveOrder();
+    }, 350);
+  }
+
+  private flushOrder(): void {
+    if (!this.orderTimer) return;
+    clearTimeout(this.orderTimer);
+    this.orderTimer = null;
+    void this.saveOrder();
+  }
+
+  private async saveOrder(): Promise<void> {
+    const playlist = this.playlist();
+    if (!playlist) return;
+    const sequence = ++this.orderSequence;
+    const trackIds = this.tracks().map((track) => track.id);
+    try {
+      const updated = await this.library.reorderPlaylist(
+        playlist.id,
+        trackIds,
+      );
+      if (sequence !== this.orderSequence) return;
+      this.playlist.set(updated);
+      this.lastSavedTracks = [...this.tracks()];
+    } catch (error) {
+      if (sequence !== this.orderSequence) return;
+      this.tracks.set(this.lastSavedTracks);
+      await this.library.load(true);
       this.toast.show((error as Error).message);
     }
   }

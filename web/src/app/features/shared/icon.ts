@@ -25,6 +25,9 @@ export type IconName =
   | 'more'
   | 'external'
   | 'trash'
+  | 'grip'
+  | 'arrow-up'
+  | 'arrow-down'
   | 'check';
 
 @Component({
@@ -134,6 +137,20 @@ export type IconName =
         @case ('external') {
           <path d="M14 4h6v6M20 4l-9 9" />
           <path d="M18 13v6H5V6h6" />
+        }
+        @case ('grip') {
+          <circle cx="9" cy="6" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="6" r="1" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="12" r="1" fill="currentColor" stroke="none" />
+          <circle cx="9" cy="18" r="1" fill="currentColor" stroke="none" />
+          <circle cx="15" cy="18" r="1" fill="currentColor" stroke="none" />
+        }
+        @case ('arrow-up') {
+          <path d="m6 14 6-6 6 6" />
+        }
+        @case ('arrow-down') {
+          <path d="m6 10 6 6 6-6" />
         }
         @case ('trash') {
           <path d="M4 7h16M9 7V4h6v3M6.5 7l1 14h9l1-14" />
