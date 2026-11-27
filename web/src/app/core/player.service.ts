@@ -37,7 +37,7 @@ export class PlayerService {
 
   private initialized = false;
   private loadedTrackId: string | null = null;
-  private lastLocalAction = 0;
+  private lastRevision: number | null = null;
   private pollTimer: ReturnType<typeof setInterval> | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private reportTimer: ReturnType<typeof setInterval> | null = null;
@@ -109,12 +109,15 @@ export class PlayerService {
 
   private applyState(data: PlayerState, force = false): void {
     const previousTrack = this.loadedTrackId;
+    const revision = Number(data.state.revision || 0);
+    const revisionChanged =
+      force || this.lastRevision === null || revision !== this.lastRevision;
+    const lastAction = data.state.lastAction;
+
     this.state.set(data);
-    this.volume.set(data.state.volume);
-    this.audio.volume = data.state.volume;
-    this.isPlaying.set(data.state.isPlaying);
 
     if (!data.current) {
+      this.lastRevision = revision;
       if (this.loadedTrackId) {
         this.audio.pause();
         this.audio.removeAttribute('src');
@@ -127,46 +130,59 @@ export class PlayerService {
     }
 
     if (previousTrack !== data.current.id) {
+      this.lastRevision = revision;
       this.loadedTrackId = data.current.id;
+      this.volume.set(data.state.volume);
+      this.audio.volume = data.state.volume;
       this.audio.src = this.api.url(data.current.streamUrl);
       this.audio.load();
       this.position.set(data.state.positionSeconds);
       this.duration.set(data.current.durationSeconds);
-      const seekTo = Math.min(
-        data.state.positionSeconds,
-        Math.max(0, data.current.durationSeconds - 0.25),
-      );
-      try {
-        this.audio.currentTime = seekTo;
-      } catch {
-        this.audio.addEventListener(
-          'loadedmetadata',
-          () => {
-            try {
-              this.audio.currentTime = seekTo;
-            } catch {
-              // The browser will start from zero if it cannot seek yet.
-            }
-          },
-          { once: true },
-        );
-      }
+      this.seekAudioTo(data.state.positionSeconds);
       if (data.state.isPlaying) void this.tryPlay();
       return;
     }
 
     this.duration.set(data.current.durationSeconds);
-    if (Date.now() - this.lastLocalAction < 2200 && !force) return;
 
-    if (
-      Math.abs(this.audio.currentTime - data.state.positionSeconds) > 4 &&
-      Number.isFinite(this.audio.currentTime)
-    ) {
-      this.audio.currentTime = data.state.positionSeconds;
-      this.position.set(data.state.positionSeconds);
+    // Polling only refreshes queue/announcement/presence data. It must never
+    // touch the audio clock unless a real control action changed the revision.
+    if (!revisionChanged) return;
+
+    this.lastRevision = revision;
+    this.volume.set(data.state.volume);
+    this.audio.volume = data.state.volume;
+
+    if (lastAction === 'seek' || force) {
+      const difference = Math.abs(
+        this.audio.currentTime - data.state.positionSeconds,
+      );
+      if (difference > 1 && Number.isFinite(this.audio.currentTime)) {
+        this.seekAudioTo(data.state.positionSeconds);
+      }
     }
+
     if (data.state.isPlaying && this.audio.paused) void this.tryPlay();
     if (!data.state.isPlaying && !this.audio.paused) this.audio.pause();
+  }
+
+  private seekAudioTo(seconds: number): void {
+    const target = Math.max(0, Number(seconds) || 0);
+    try {
+      this.audio.currentTime = target;
+    } catch {
+      this.audio.addEventListener(
+        'loadedmetadata',
+        () => {
+          try {
+            this.audio.currentTime = target;
+          } catch {
+            // The browser will start from zero if it cannot seek yet.
+          }
+        },
+        { once: true },
+      );
+    }
   }
 
   private async tryPlay(): Promise<void> {
@@ -177,17 +193,12 @@ export class PlayerService {
     }
   }
 
-  private markLocal(): void {
-    this.lastLocalAction = Date.now();
-  }
-
   private async action(
     body: Record<string, unknown>,
     force = false,
   ): Promise<PlayerState | null> {
     this.loading.set(true);
     this.error.set(null);
-    this.markLocal();
     try {
       const response = await this.api.post<{ data: PlayerState }>(
         '/player/action',
@@ -222,7 +233,6 @@ export class PlayerService {
       if (!this.current()) {
         await this.action({ action: 'play' }, true);
       } else {
-        this.markLocal();
         await this.tryPlay();
         await this.action({ action: 'play' });
       }
@@ -243,7 +253,6 @@ export class PlayerService {
   }
 
   async seek(positionSeconds: number): Promise<void> {
-    this.markLocal();
     this.audio.currentTime = positionSeconds;
     this.position.set(positionSeconds);
     await this.action({ action: 'seek', positionSeconds });

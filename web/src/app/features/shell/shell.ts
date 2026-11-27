@@ -3,6 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { App } from '@capacitor/app';
 import { APP_NAME } from '../../core/app-config';
 import { AuthService } from '../../core/auth.service';
+import { IngestService } from '../../core/ingest.service';
 import { LocalNotificationService } from '../../core/local-notification.service';
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
@@ -69,11 +70,13 @@ export class Shell implements OnInit, OnDestroy {
   readonly toast = inject(ToastService);
   readonly auth = inject(AuthService);
   private readonly localNotifications = inject(LocalNotificationService);
+  private readonly ingest = inject(IngestService);
   private readonly player = inject(PlayerService);
 
   async ngOnInit(): Promise<void> {
     await this.auth.bootstrap();
     await this.player.init();
+    void this.ingest.load();
     void this.localNotifications.initialize();
     void App.addListener('appStateChange', ({ isActive }) => {
       if (!isActive) return;

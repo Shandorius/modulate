@@ -20,6 +20,7 @@ const IMAGE_EXTENSIONS = new Set(['.jpg', '.jpeg', '.png', '.webp']);
 let timer = null;
 let running = false;
 let stopped = false;
+const activeChildren = new Map();
 
 function safeMessage(error) {
   const message = String(error?.message || error || 'Import failed.');
@@ -257,35 +258,83 @@ async function processJob(job) {
 
   let lastUpdate = 0;
   let lastProgress = 2;
+  let itemIndex = 1;
+  let itemTotal = 0;
+
   const stdout = await new Promise((resolve, reject) => {
     const child = spawn(env.YTDLP_PATH, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
     });
+    activeChildren.set(job.id, child);
+    const timeout = setTimeout(() => {
+      child.kill('SIGTERM');
+      setTimeout(() => child.kill('SIGKILL'), 5000).unref?.();
+    }, 60 * 60 * 1000);
+
     let output = '';
     let stderr = '';
+    let lastStage = '';
+
+    const updateProgress = (overall, stage) => {
+      const capped = Math.min(92, Math.max(3, overall));
+      const now = Date.now();
+      if (capped <= lastProgress + 0.5) return;
+      if (now - lastUpdate < 1000 && capped < lastProgress + 2) return;
+      lastProgress = Math.max(lastProgress, capped);
+      lastUpdate = now;
+      void updateJob(job.id, {
+        progress: Math.round(lastProgress),
+        stage,
+        ...(itemTotal > 1 ? { itemCount: itemTotal } : {}),
+      });
+    };
+
     const inspect = (chunk, isError = false) => {
       const text = chunk.toString();
       output += text;
       if (output.length > 300_000) output = output.slice(-150_000);
       if (isError) stderr += text;
+
+      const itemMatches = [
+        ...text.matchAll(/\[download\]\s+Downloading item\s+(\d+)\s+of\s+(\d+)/gi),
+      ];
+      const itemMatch = itemMatches.at(-1);
+      if (itemMatch) {
+        itemIndex = Math.max(1, Number(itemMatch[1]));
+        itemTotal = Math.max(itemIndex, Number(itemMatch[2]));
+      }
+
       const matches = [...text.matchAll(/\[download\]\s+(\d+(?:\.\d+)?)%/g)];
       const match = matches.at(-1);
-      if (match) {
-        const percent = Math.min(92, Math.max(3, Number(match[1])));
-        if (percent >= lastProgress + 2 || Date.now() - lastUpdate > 1200) {
-          lastProgress = percent;
-          lastUpdate = Date.now();
-          void updateJob(job.id, {
-            progress: Math.round(percent),
-            stage: 'Downloading audio',
-          });
-        }
+      if (!match) return;
+
+      const percent = Math.min(100, Math.max(0, Number(match[1])));
+      const overall =
+        itemTotal > 1
+          ? ((itemIndex - 1) + percent / 100) / itemTotal * 100
+          : percent;
+      const stage =
+        itemTotal > 1
+          ? `Downloading ${itemIndex} of ${itemTotal}`
+          : 'Downloading audio';
+
+      if (itemTotal > 1 && stage !== lastStage) {
+        lastStage = stage;
+        void updateJob(job.id, { stage, itemCount: itemTotal });
       }
+      updateProgress(overall, stage);
     };
+
     child.stdout.on('data', (chunk) => inspect(chunk, false));
     child.stderr.on('data', (chunk) => inspect(chunk, true));
-    child.on('error', reject);
+    child.on('error', (error) => {
+      clearTimeout(timeout);
+      activeChildren.delete(job.id);
+      reject(error);
+    });
     child.on('close', (code) => {
+      clearTimeout(timeout);
+      activeChildren.delete(job.id);
       if (code === 0) resolve(output);
       else {
         reject(
@@ -378,13 +427,21 @@ async function tick() {
     try {
       await processJob(job);
     } catch (error) {
-      console.error(`[ingest] job ${job.id} failed:`, safeMessage(error));
-      await updateJob(job.id, {
-        status: 'failed',
-        stage: 'Could not import',
-        errorMessage: safeMessage(error),
-        finishedAt: new Date(),
-      }).catch(() => {});
+      if (await isCancelled(job.id)) {
+        await updateJob(job.id, {
+          status: 'cancelled',
+          stage: 'Cancelled',
+          finishedAt: new Date(),
+        }).catch(() => {});
+      } else {
+        console.error(`[ingest] job ${job.id} failed:`, safeMessage(error));
+        await updateJob(job.id, {
+          status: 'failed',
+          stage: 'Could not import',
+          errorMessage: safeMessage(error),
+          finishedAt: new Date(),
+        }).catch(() => {});
+      }
     }
   } catch (error) {
     console.error('[ingest] worker error:', safeMessage(error));
@@ -414,6 +471,20 @@ async function stop() {
   stopped = true;
   if (timer) clearInterval(timer);
   timer = null;
+  for (const child of activeChildren.values()) {
+    child.kill('SIGTERM');
+  }
+  activeChildren.clear();
 }
 
-module.exports = { start, stop, tick, processJob };
+function cancelJob(jobId) {
+  const child = activeChildren.get(String(jobId));
+  if (!child) return false;
+  child.kill('SIGTERM');
+  setTimeout(() => {
+    if (activeChildren.has(String(jobId))) child.kill('SIGKILL');
+  }, 5000).unref?.();
+  return true;
+}
+
+module.exports = { start, stop, tick, processJob, cancelJob };

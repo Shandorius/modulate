@@ -75,6 +75,8 @@ async function getState(userId, baseUrl = '') {
       shuffle: state.shuffle,
       contextType: state.context_type,
       contextId: state.context_id,
+      revision: Number(state.revision || 0),
+      lastAction: state.last_action || null,
       updatedAt: state.updated_at,
     },
     current,
@@ -450,6 +452,15 @@ async function action(userId, input, baseUrl = '') {
 
     throw badRequest('Unknown player action.');
   });
+
+  // Position reports intentionally do not bump the revision. Only real control
+  // changes do, so clients never seek themselves backward from a stale report.
+  await pool.query(
+    `UPDATE playback_state
+     SET revision = revision + 1, last_action = $1
+     WHERE user_id = $2`,
+    [actionName, userId],
+  );
 
   return getState(userId, baseUrl);
 }

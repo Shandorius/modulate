@@ -45,12 +45,24 @@ test('player state, queue, presence, and transport actions work', async () => {
   assert.equal(played.body.data.current.id, first.id);
   assert.equal(played.body.data.state.isPlaying, true);
   assert.equal(played.body.data.queue.length, 2);
+  const revisionAfterPlay = played.body.data.state.revision;
+
+  const reportWithoutChange = await agent
+    .post('/api/v1/player/action')
+    .send({ action: 'report', positionSeconds: 5, isPlaying: true })
+    .expect(200);
+  assert.equal(
+    reportWithoutChange.body.data.state.revision,
+    revisionAfterPlay,
+  );
 
   const paused = await agent
     .post('/api/v1/player/action')
     .send({ action: 'pause' })
     .expect(200);
   assert.equal(paused.body.data.state.isPlaying, false);
+  assert.equal(paused.body.data.state.revision, revisionAfterPlay + 1);
+  assert.equal(paused.body.data.state.lastAction, 'pause');
 
   await agent
     .post('/api/v1/player/action')

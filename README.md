@@ -315,6 +315,13 @@ in the UI. Failed jobs can be retried.
 - Loopback, link-local, and private network addresses are rejected.
 - Up to three active imports are allowed at once.
 - One playlist import is capped at 200 items by default.
+- YouTube watch links default to the single video, even when they contain a
+  `list` or `start_radio` parameter. Choose **Playlist** to import the full mix
+  or playlist.
+- Cancelling an import terminates its yt-dlp process and releases the worker for
+  the next job.
+- Playlist progress is aggregated across items; single-track progress never
+  moves backward.
 
 The user is responsible for the URLs they choose to download and for complying
 with local law and the terms of the source site. Modulate does not bundle media

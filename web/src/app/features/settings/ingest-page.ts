@@ -33,7 +33,7 @@ import { ToastService } from '../../core/toast.service';
             inputmode="url"
             placeholder="https://..."
           />
-          <span class="field__hint">Public http or https URLs only. Private network addresses are refused.</span>
+          <span class="field__hint">Public http or https URLs only. YouTube watch links import one video unless you choose Playlist.</span>
         </label>
 
         <div class="form-grid">

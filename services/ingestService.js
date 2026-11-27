@@ -3,6 +3,7 @@ const net = require('net');
 const { pool } = require('../db/pool');
 const { badRequest, notFound, conflict } = require('./errors');
 const env = require('../config/env');
+const ingestWorker = require('./ingestWorker');
 
 function isPrivateIp(address) {
   if (net.isIPv4(address)) {
@@ -98,11 +99,53 @@ function presentJob(row) {
   };
 }
 
-async function create(userId, input) {
-  const sourceUrl = await validateSourceUrl(input.url);
-  const sourceKind = ['auto', 'track', 'playlist'].includes(input.kind)
-    ? input.kind
+function normalizeSource(rawUrl, requestedKind = 'auto') {
+  const kind = ['auto', 'track', 'playlist'].includes(requestedKind)
+    ? requestedKind
     : 'auto';
+  const url = new URL(rawUrl);
+  const host = url.hostname.toLowerCase().replace(/^www\./, '');
+  const youtubeHosts = new Set([
+    'youtube.com',
+    'm.youtube.com',
+    'music.youtube.com',
+    'youtu.be',
+  ]);
+  if (!youtubeHosts.has(host)) return { url: url.toString(), kind };
+
+  if (host === 'youtu.be') {
+    return { url: url.toString(), kind: kind === 'playlist' ? 'track' : kind === 'auto' ? 'track' : kind };
+  }
+
+  if (url.pathname === '/watch') {
+    // A watch URL with list/start_radio is usually a YouTube Mix/radio. Auto
+    // and Track intentionally import only the video; Playlist keeps the list.
+    if (kind !== 'playlist') {
+      url.searchParams.delete('list');
+      url.searchParams.delete('index');
+      url.searchParams.delete('start_radio');
+      url.searchParams.delete('pp');
+      return { url: url.toString(), kind: 'track' };
+    }
+    return { url: url.toString(), kind: 'playlist' };
+  }
+
+  if (url.pathname === '/playlist') {
+    return { url: url.toString(), kind: 'playlist' };
+  }
+
+  if (kind === 'auto') return { url: url.toString(), kind: 'track' };
+  return { url: url.toString(), kind };
+}
+
+async function create(userId, input) {
+  const validatedUrl = await validateSourceUrl(input.url);
+  const normalized = normalizeSource(
+    validatedUrl,
+    ['auto', 'track', 'playlist'].includes(input.kind) ? input.kind : 'auto',
+  );
+  const sourceUrl = normalized.url;
+  const sourceKind = normalized.kind;
   const { rows: active } = await pool.query(
     `SELECT count(*)::int AS count FROM ingest_jobs
      WHERE user_id = $1 AND status IN ('queued', 'running')`,
@@ -167,6 +210,7 @@ async function cancel(userId, jobId) {
     if (!existing) throw notFound('Import job not found.');
     throw conflict('That import has already finished.');
   }
+  ingestWorker.cancelJob(jobId);
   return presentJob(rows[0]);
 }
 
@@ -177,6 +221,7 @@ module.exports = {
   retry,
   cancel,
   validateSourceUrl,
+  normalizeSource,
   presentJob,
   isPrivateIp,
   maxItems: env.MAX_INGEST_ITEMS,

@@ -144,6 +144,8 @@ export interface PlayerState {
     shuffle: boolean;
     contextType: string | null;
     contextId: string | null;
+    revision: number;
+    lastAction: string | null;
     updatedAt: string;
   };
   current: Track | null;

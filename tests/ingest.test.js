@@ -49,6 +49,31 @@ test('private and non-http URLs are rejected', async () => {
   assert.equal(ingestService.isPrivateIp('1.1.1.1'), false);
 });
 
+test('YouTube watch URLs default to a single track, not a radio mix', () => {
+  const normalized = ingestService.normalizeSource(
+    'https://www.youtube.com/watch?v=4zAThXFOy2c&list=RD4zAThXFOy2c&start_radio=1',
+    'auto',
+  );
+  assert.equal(normalized.kind, 'track');
+  assert.equal(
+    normalized.url,
+    'https://www.youtube.com/watch?v=4zAThXFOy2c',
+  );
+
+  const explicitPlaylist = ingestService.normalizeSource(
+    'https://www.youtube.com/watch?v=4zAThXFOy2c&list=RD4zAThXFOy2c&start_radio=1',
+    'playlist',
+  );
+  assert.equal(explicitPlaylist.kind, 'playlist');
+  assert.match(explicitPlaylist.url, /list=RD4zAThXFOy2c/);
+
+  const playlistUrl = ingestService.normalizeSource(
+    'https://www.youtube.com/playlist?list=PL123',
+    'auto',
+  );
+  assert.equal(playlistUrl.kind, 'playlist');
+});
+
 test('an import job can be created, inspected, cancelled, and retried', async () => {
   const agent = request.agent(app);
   await register(agent, 'jobs@example.com');
