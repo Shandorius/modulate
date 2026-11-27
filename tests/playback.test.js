@@ -88,6 +88,43 @@ test('player state, queue, presence, and transport actions work', async () => {
   assert.equal(volume.body.data.state.volume, 0.4);
 });
 
+test('playing a selected track starts there while keeping the list context', async () => {
+  const agent = request.agent(app);
+  const { user } = await register(agent, 'start-index@example.com');
+  const first = await seedTrack(user.id, { title: 'First' });
+  const second = await seedTrack(user.id, { title: 'Second' });
+  const third = await seedTrack(user.id, { title: 'Third' });
+
+  await agent
+    .post('/api/v1/player/presence')
+    .send({ clientId: 'start-index-player' })
+    .expect(200);
+
+  const played = await agent
+    .post('/api/v1/player/action')
+    .send({
+      action: 'play_track',
+      trackId: second.id,
+      trackIds: [first.id, second.id, third.id],
+    })
+    .expect(200);
+
+  assert.equal(played.body.data.current.id, second.id);
+  assert.equal(played.body.data.queue.length, 3);
+
+  const previous = await agent
+    .post('/api/v1/player/action')
+    .send({ action: 'previous' })
+    .expect(200);
+  assert.equal(previous.body.data.current.id, first.id);
+
+  const next = await agent
+    .post('/api/v1/player/action')
+    .send({ action: 'next' })
+    .expect(200);
+  assert.equal(next.body.data.current.id, second.id);
+});
+
 test('playlist playback replaces the queue', async () => {
   const agent = request.agent(app);
   const { user } = await register(agent, 'queue@example.com');

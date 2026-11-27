@@ -200,7 +200,7 @@ export class SearchPage implements OnInit, OnDestroy {
   }
 
   async play(track: Track): Promise<void> {
-    await this.player.playTrack(track, this.tracks().map((item) => item.id));
+    await this.player.playTrack(track);
   }
 
   async queue(track: Track): Promise<void> {

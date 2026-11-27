@@ -307,12 +307,17 @@ export class LibraryPage implements OnInit, OnDestroy {
   }
 
   async play(track: Track): Promise<void> {
-    await this.player.playTrack(track, this.library.tracks().map((item) => item.id));
+    await this.player.playTrack(track);
   }
 
   async playAll(): Promise<void> {
     const first = this.library.tracks()[0];
-    if (first) await this.play(first);
+    if (first) {
+      await this.player.playTrack(
+        first,
+        this.library.tracks().map((item) => item.id),
+      );
+    }
   }
 
   async queue(track: Track): Promise<void> {

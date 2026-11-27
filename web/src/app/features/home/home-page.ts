@@ -97,7 +97,7 @@ import { Icon } from '../shared/icon';
             @for (track of summary()?.recentlyAdded || []; track track.id) {
               <app-track-row
                 [track]="track"
-                (play)="playFromList($event, summary()?.recentlyAdded || [])"
+                (play)="play($event)"
                 (queue)="queue($event)"
                 (favorite)="favorite($event)"
               />
@@ -155,14 +155,16 @@ export class HomePage implements OnInit {
 
   async playLibrary(): Promise<void> {
     const first = this.library.tracks()[0];
-    if (first) await this.playFromList(first, this.library.tracks());
+    if (first) {
+      await this.player.playTrack(
+        first,
+        this.library.tracks().map((item) => item.id),
+      );
+    }
   }
 
-  async playFromList(track: Track, list: Track[]): Promise<void> {
-    await this.player.playTrack(
-      track,
-      list.map((item) => item.id),
-    );
+  async play(track: Track): Promise<void> {
+    await this.player.playTrack(track);
   }
 
   async queue(track: Track): Promise<void> {

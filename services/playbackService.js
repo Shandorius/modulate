@@ -372,11 +372,13 @@ async function action(userId, input, baseUrl = '') {
 
     if (actionName === 'play_track' || actionName === 'play_playlist') {
       let trackIds = [];
+      let startTrackId = null;
       let contextType = 'track';
       let contextId = null;
       if (actionName === 'play_playlist') {
         if (!input.playlistId) throw badRequest('playlistId is required.');
         trackIds = await playlistService.trackIds(userId, input.playlistId);
+        startTrackId = trackIds[0] || null;
         contextType = 'playlist';
         contextId = input.playlistId;
       } else {
@@ -393,23 +395,22 @@ async function action(userId, input, baseUrl = '') {
           trackIds = requested.filter((id) => valid.has(id));
         }
         if (!trackIds.includes(input.trackId)) trackIds.push(input.trackId);
+        // Keep the full supplied context in the queue, but start at the track
+        // the listener actually clicked.
+        startTrackId = input.trackId;
         contextId = input.trackId;
       }
-      if (!trackIds.length) throw badRequest('There are no tracks to play.');
+      if (!trackIds.length || !startTrackId) {
+        throw badRequest('There are no tracks to play.');
+      }
       await replaceQueue(client, userId, trackIds);
-      const position = await queuePosition(client, userId, trackIds[0]);
       await client.query(
         `UPDATE playback_state
          SET context_type = $1, context_id = $2
          WHERE user_id = $3`,
         [contextType, contextId, userId],
       );
-      await setTrack(client, userId, trackIds[0], 0, true);
-      await client.query(
-        'UPDATE playback_state SET position_seconds = 0 WHERE user_id = $1',
-        [userId],
-      );
-      void position;
+      await setTrack(client, userId, startTrackId, 0, true);
       return;
     }
 
