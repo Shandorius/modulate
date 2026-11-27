@@ -250,7 +250,10 @@ async function remove(userId, trackId, isAdmin = false) {
     throw forbidden('Only an administrator can remove scanned library tracks.');
   }
   await pool.query('DELETE FROM tracks WHERE id = $1', [trackId]);
-  if (row.storage_kind !== 'external') {
+  if (row.storage_kind === 'external') {
+    // Remove only the copied artwork. The read-only source audio stays.
+    await mediaService.removeTrackArtwork(row);
+  } else {
     await mediaService.removeTrackFiles(row);
   }
   return { id: trackId, storageKind: row.storage_kind || 'managed' };

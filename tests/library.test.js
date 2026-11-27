@@ -1,4 +1,6 @@
 const test = require('node:test');
+const fs = require('fs');
+const path = require('path');
 const assert = require('node:assert/strict');
 const {
   request,
@@ -57,8 +59,17 @@ test('tracks can be listed, searched, edited, favourited, and deleted', async ()
   assert.equal(summary.body.data.counts.tracks, 1);
   assert.equal(summary.body.data.counts.albums, 1);
 
+  const trackDirectory = path.join(
+    process.env.MEDIA_ROOT,
+    user.id,
+    track.id,
+  );
+  assert.equal(fs.existsSync(trackDirectory), true);
+
   await agent.delete(`/api/v1/tracks/${track.id}`).expect(200);
   await agent.get(`/api/v1/tracks/${track.id}`).expect(404);
+  assert.equal(fs.existsSync(trackDirectory), false);
+  assert.equal(fs.existsSync(path.join(process.env.MEDIA_ROOT, user.id)), false);
 });
 
 test('albums are derived from track metadata', async () => {

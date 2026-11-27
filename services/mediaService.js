@@ -13,6 +13,17 @@ function resolveMediaPath(relativePath) {
   return absolute;
 }
 
+async function pruneEmptyParents(start, root = env.MEDIA_ROOT) {
+  const boundary = path.resolve(root);
+  let current = path.resolve(start);
+  while (current !== boundary && current.startsWith(`${boundary}${path.sep}`)) {
+    const entries = await fs.readdir(current).catch(() => null);
+    if (entries === null || entries.length > 0) return;
+    await fs.rmdir(current).catch(() => {});
+    current = path.dirname(current);
+  }
+}
+
 async function removeTrackFiles(track) {
   const files = [track.file_path, track.artwork_path].filter(Boolean);
   let trackDirectory = null;
@@ -24,7 +35,16 @@ async function removeTrackFiles(track) {
   }
   if (trackDirectory) {
     await fs.rm(trackDirectory, { recursive: true, force: true }).catch(() => {});
+    await pruneEmptyParents(path.dirname(trackDirectory));
   }
+}
+
+async function removeTrackArtwork(track) {
+  if (!track.artwork_path) return;
+  const absolute = resolveMediaPath(track.artwork_path);
+  if (!absolute) return;
+  await fs.unlink(absolute).catch(() => {});
+  await pruneEmptyParents(path.dirname(absolute));
 }
 
 async function resolveTrackAudio(track) {
@@ -44,4 +64,10 @@ async function resolveTrackAudio(track) {
   return resolveMediaPath(track.file_path);
 }
 
-module.exports = { resolveMediaPath, resolveTrackAudio, removeTrackFiles };
+module.exports = {
+  resolveMediaPath,
+  resolveTrackAudio,
+  removeTrackFiles,
+  removeTrackArtwork,
+  pruneEmptyParents,
+};
