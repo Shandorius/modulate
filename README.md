@@ -100,6 +100,46 @@ docker compose down
 docker compose down -v   # destructive: removes database and media volumes
 ```
 
+## Pull-only install from GHCR
+
+After the GitHub Actions workflow publishes the image, a host does not need a
+source checkout. Download only the production Compose file:
+
+```bash
+mkdir -p ~/modulate && cd ~/modulate
+curl -fsSLO https://raw.githubusercontent.com/Shandorius/modulate/main/docker-compose.prod.yml
+curl -fsSL \
+  https://raw.githubusercontent.com/Shandorius/modulate/main/.env.server.example \
+  -o .env
+```
+
+Set `POSTGRES_PASSWORD` and:
+
+```env
+MODULATE_IMAGE=ghcr.io/shandorius/modulate:latest
+APP_PORT=3000
+```
+
+Then:
+
+```bash
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
+```
+
+GHCR packages are private by default. After the first image publish, open the
+package settings once and change visibility to **Public**:
+
+```text
+https://github.com/users/Shandorius/packages/container/package/modulate
+```
+
+If you keep it private, authenticate with a token that has `read:packages`:
+
+```bash
+echo "$GHCR_TOKEN" | docker login ghcr.io -u Shandorius --password-stdin
+```
+
 ### Published ports
 
 Only the app port is published:
