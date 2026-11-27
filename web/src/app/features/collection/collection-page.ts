@@ -44,24 +44,28 @@ import { Icon } from '../shared/icon';
           </div>
           <div class="collection-head__body">
             <a class="settings-back" routerLink="/app/library"><app-icon name="chevron-left" [size]="14" /> Library</a>
-            <p class="eyebrow">{{ isPlaylist() ? (playlist()?.canEdit ? 'Your playlist' : playlist()?.visibility === 'public' ? 'Public playlist' : 'Shared playlist') : 'Album' }}</p>
+            <p class="eyebrow">{{ isPlaylist() ? (playlist()?.canManage ? 'Your playlist' : playlist()?.visibility === 'public' ? 'Public playlist' : 'Shared playlist') : 'Album' }}</p>
             <h1 class="display collection-head__title">{{ title() }}</h1>
             <p class="muted">{{ subtitle() }}</p>
             @if (isPlaylist() && playlist(); as list) {
               <p class="collection-byline">
                 By {{ list.ownerName || 'a listener' }}
                 <span class="dot">·</span>
-                <span class="visibility-label">{{ list.visibility === 'public' ? 'Public on this server' : list.relationship === 'shared' ? 'Shared with you' : 'Private' }}</span>
+                <span class="visibility-label">
+                  {{ list.myRole === 'editor' ? 'Editor' : list.visibility === 'public' ? 'Public on this server' : 'Shared with you' }}
+                </span>
               </p>
             }
             <div class="button-row">
               <button class="btn btn--primary" type="button" [disabled]="!tracks().length" (click)="playAll()">Play</button>
-              @if (isPlaylist() && playlist()?.canEdit) {
+              @if (isPlaylist() && playlist()?.canEditTracks) {
                 <button class="btn btn--ghost" type="button" (click)="showAdd.set(true)">Add tracks</button>
-                <button class="btn btn--quiet" type="button" (click)="startRename()">Rename</button>
                 <button class="btn btn--quiet" type="button" (click)="toggleReorder()">
                   <app-icon name="grip" [size]="16" /> {{ reorderMode() ? 'Done' : 'Reorder' }}
                 </button>
+              }
+              @if (isPlaylist() && playlist()?.canManage) {
+                <button class="btn btn--quiet" type="button" (click)="startRename()">Rename</button>
                 <button class="btn btn--quiet" type="button" (click)="openShare()"><app-icon name="share" [size]="16" /> Share</button>
               }
             </div>
@@ -79,8 +83,8 @@ import { Icon } from '../shared/icon';
           <div class="collection-meta">
             <span>{{ list.trackCount }} track{{ list.trackCount === 1 ? '' : 's' }}</span>
             <span>{{ player.formatTime(list.durationSeconds) }}</span>
-            @if (list.canEdit) {
-              <span>{{ list.shareCount }} shared</span>
+            <span>{{ list.shareCount }} shared</span>
+            @if (list.canManage) {
               <button class="text-button" type="button" (click)="deletePlaylist()">Delete playlist</button>
             }
           </div>
@@ -108,7 +112,7 @@ import { Icon } from '../shared/icon';
               @for (track of tracks(); track track.id) {
                 <app-track-row
                   [track]="track"
-                  [removable]="isPlaylist() && (playlist()?.canEdit || false)"
+                  [removable]="isPlaylist() && (playlist()?.canEditTracks || false)"
                   (play)="play($event)"
                   (queue)="queue($event)"
                   (favorite)="favorite($event)"
@@ -122,7 +126,7 @@ import { Icon } from '../shared/icon';
             <span class="empty-state__mark" aria-hidden="true"><app-icon name="music" [size]="34" /></span>
             <h2>{{ isPlaylist() ? 'This playlist is empty.' : 'This album has no tracks.' }}</h2>
             <p>{{ isPlaylist() ? 'Add tracks from your library to start shaping it.' : 'Import more music to fill this album.' }}</p>
-            @if (isPlaylist() && playlist()?.canEdit) {
+            @if (isPlaylist() && playlist()?.canEditTracks) {
               <button class="btn btn--primary" type="button" (click)="showAdd.set(true)">Add tracks</button>
             }
           </section>
@@ -184,12 +188,16 @@ import { Icon } from '../shared/icon';
               </button>
             </div>
 
-            <form class="inline-create" (ngSubmit)="shareWithSelected()">
+            <form class="inline-create share-form" (ngSubmit)="shareWithSelected()">
               <select class="select" name="shareUser" [(ngModel)]="selectedUserId" aria-label="Choose a user">
                 <option value="">Choose a user…</option>
                 @for (user of availableUsers(); track user.id) {
                   <option [value]="user.id">{{ user.displayName || user.email }} · {{ user.email }}</option>
                 }
+              </select>
+              <select class="select" name="shareRole" [(ngModel)]="shareRole" aria-label="Permission">
+                <option value="viewer">Can view</option>
+                <option value="editor">Can edit</option>
               </select>
               <button class="btn btn--primary" type="submit" [disabled]="!selectedUserId">Share</button>
             </form>
@@ -203,6 +211,10 @@ import { Icon } from '../shared/icon';
                       <strong>{{ share.displayName || share.email }}</strong>
                       <small>{{ share.email }}</small>
                     </span>
+                    <select class="select share-role" [value]="share.role" (change)="changeShareRole(share, $event)" aria-label="Permission">
+                      <option value="viewer">Can view</option>
+                      <option value="editor">Can edit</option>
+                    </select>
                     <button class="text-button text-button--danger" type="button" (click)="unshare(share.userId)">Remove</button>
                   </div>
                 }
@@ -247,6 +259,7 @@ export class CollectionPage implements OnInit, OnDestroy {
 
   playlistName = '';
   selectedUserId = '';
+  shareRole: 'viewer' | 'editor' = 'viewer';
 
   availableTracks(): Track[] {
     const used = new Set(this.tracks().map((track) => track.id));
@@ -383,16 +396,44 @@ export class CollectionPage implements OnInit, OnDestroy {
 
   async shareWithSelected(): Promise<void> {
     if (!this.playlist() || !this.selectedUserId) return;
+    const role = this.shareRole;
     try {
       const shares = await this.library.shareWith(
         this.playlist()!.id,
         this.selectedUserId,
+        role,
       );
       this.shares.set(shares);
       const updated = await this.library.getPlaylist(this.playlist()!.id);
       this.playlist.set(updated);
       this.selectedUserId = '';
-      this.toast.show('Playlist shared.');
+      this.shareRole = 'viewer';
+      this.toast.show(
+        role === 'editor'
+          ? 'Playlist shared with edit access.'
+          : 'Playlist shared.',
+      );
+    } catch (error) {
+      this.toast.show((error as Error).message);
+    }
+  }
+
+  async changeShareRole(
+    share: PlaylistShare,
+    event: Event,
+  ): Promise<void> {
+    if (!this.playlist()) return;
+    const role = (event.target as HTMLSelectElement).value as
+      | 'viewer'
+      | 'editor';
+    try {
+      const shares = await this.library.updateShareRole(
+        this.playlist()!.id,
+        share.userId,
+        role,
+      );
+      this.shares.set(shares);
+      this.toast.show('Permission updated.');
     } catch (error) {
       this.toast.show((error as Error).message);
     }
@@ -489,6 +530,7 @@ export class CollectionPage implements OnInit, OnDestroy {
       const updated = await this.library.reorderPlaylist(
         playlist.id,
         trackIds,
+        playlist.revision,
       );
       if (sequence !== this.orderSequence) return;
       this.playlist.set(updated);

@@ -57,10 +57,13 @@ test('playlists are private, shareable with users, and public on the instance', 
     .expect(200);
   assert.equal(shared.body.data.length, 1);
   assert.equal(shared.body.data[0].userId, viewerUser.user.id);
+  assert.equal(shared.body.data[0].role, 'viewer');
 
   const viewerView = await viewer.get(`/api/v1/playlists/${id}`).expect(200);
   assert.equal(viewerView.body.data.relationship, 'shared');
-  assert.equal(viewerView.body.data.canEdit, false);
+  assert.equal(viewerView.body.data.myRole, 'viewer');
+  assert.equal(viewerView.body.data.canEditTracks, false);
+  assert.equal(viewerView.body.data.canManage, false);
   assert.equal(viewerView.body.data.tracks.length, 1);
 
   await viewer
@@ -101,6 +104,108 @@ test('playlists are private, shareable with users, and public on the instance', 
 
   await viewer.get(`/api/v1/playlists/${id}`).expect(404);
   await stranger.get(`/api/v1/playlists/${id}`).expect(404);
+});
+
+test('editors can manage tracks but not rename, delete, or share the playlist', async () => {
+  const owner = request.agent(app);
+  const editor = request.agent(app);
+  const ownerUser = await register(owner, 'collab-owner@example.com');
+  const editorUser = await register(editor, 'collab-editor@example.com');
+  const first = await seedTrack(ownerUser.user.id, { title: 'One' });
+  const second = await seedTrack(ownerUser.user.id, { title: 'Two' });
+  const created = await owner
+    .post('/api/v1/playlists')
+    .send({ name: 'Collaborative' })
+    .expect(201);
+  const id = created.body.data.id;
+  await owner
+    .post(`/api/v1/playlists/${id}/tracks`)
+    .send({ trackId: first.id })
+    .expect(200);
+  await owner
+    .post(`/api/v1/playlists/${id}/tracks`)
+    .send({ trackId: second.id })
+    .expect(200);
+
+  const shared = await owner
+    .post(`/api/v1/playlists/${id}/shares`)
+    .send({ userId: editorUser.user.id, role: 'editor' })
+    .expect(200);
+  assert.equal(shared.body.data[0].role, 'editor');
+
+  const detail = await editor.get(`/api/v1/playlists/${id}`).expect(200);
+  assert.equal(detail.body.data.myRole, 'editor');
+  assert.equal(detail.body.data.canEditTracks, true);
+  assert.equal(detail.body.data.canManage, false);
+
+  const reordered = await editor
+    .put(`/api/v1/playlists/${id}/order`)
+    .send({ trackIds: [second.id, first.id] })
+    .expect(200);
+  assert.deepEqual(
+    reordered.body.data.tracks.map((track) => track.title),
+    ['Two', 'One'],
+  );
+  assert.equal(reordered.body.data.revision, detail.body.data.revision + 1);
+
+  await editor
+    .post(`/api/v1/playlists/${id}/tracks`)
+    .send({ trackId: first.id })
+    .expect(409);
+  await editor
+    .patch(`/api/v1/playlists/${id}`)
+    .send({ name: 'Not allowed' })
+    .expect(403);
+  await editor
+    .patch(`/api/v1/playlists/${id}/visibility`)
+    .send({ visibility: 'public' })
+    .expect(403);
+  await editor.delete(`/api/v1/playlists/${id}`).expect(403);
+  await editor
+    .post(`/api/v1/playlists/${id}/shares`)
+    .send({ userId: ownerUser.user.id, role: 'editor' })
+    .expect(403);
+
+  await owner
+    .patch(`/api/v1/playlists/${id}/shares/${editorUser.user.id}`)
+    .send({ role: 'viewer' })
+    .expect(200);
+  const downgraded = await editor.get(`/api/v1/playlists/${id}`).expect(200);
+  assert.equal(downgraded.body.data.myRole, 'viewer');
+  assert.equal(downgraded.body.data.canEditTracks, false);
+});
+
+test('reorders reject a stale playlist revision', async () => {
+  const owner = request.agent(app);
+  const { user } = await register(owner, 'revision@example.com');
+  const first = await seedTrack(user.id, { title: 'Revision one' });
+  const second = await seedTrack(user.id, { title: 'Revision two' });
+  const created = await owner
+    .post('/api/v1/playlists')
+    .send({ name: 'Revision test' })
+    .expect(201);
+  const id = created.body.data.id;
+  await owner
+    .post(`/api/v1/playlists/${id}/tracks`)
+    .send({ trackId: first.id })
+    .expect(200);
+  await owner
+    .post(`/api/v1/playlists/${id}/tracks`)
+    .send({ trackId: second.id })
+    .expect(200);
+  const detail = await owner.get(`/api/v1/playlists/${id}`).expect(200);
+  const staleRevision = detail.body.data.revision;
+
+  await owner
+    .put(`/api/v1/playlists/${id}/order`)
+    .send({ trackIds: [second.id, first.id], expectedRevision: staleRevision })
+    .expect(200);
+
+  const conflict = await owner
+    .put(`/api/v1/playlists/${id}/order`)
+    .send({ trackIds: [first.id, second.id], expectedRevision: staleRevision })
+    .expect(409);
+  assert.equal(conflict.body.error.code, 'CONFLICT');
 });
 
 test('only the owner can share or unshare, and self-shares are rejected', async () => {

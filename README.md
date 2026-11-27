@@ -63,11 +63,23 @@ Playlist access:
 | Public | Every logged-in account on this instance |
 
 Public does **not** mean anonymous internet access. Anonymous share links are a
-possible later feature. Shared/public playlists are read-only for recipients;
-only the owner can rename, reorder, edit, share, unpublish, or delete them.
+possible later feature.
 
-Playlist owners can reorder with drag-and-drop on desktop or the up/down buttons
-on any device. The new order is saved automatically.
+Playlist sharing has two recipient roles:
+
+| Role | Can do |
+|---|---|
+| Viewer | Play the playlist |
+| Editor | Add, remove, and reorder tracks |
+
+The owner controls the playlist name, description, visibility, sharing, and
+deletion. Public playlists remain read-only. Editors can reorder with
+drag-and-drop on desktop or the up/down buttons on any device. The new order is
+saved automatically.
+
+Simultaneous reorders are protected by a playlist revision. If someone else
+changed the playlist first, the stale save is rejected and the editor is asked to
+reload instead of silently overwriting the other person's changes.
 
 ## Screens
 

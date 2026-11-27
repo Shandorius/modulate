@@ -70,7 +70,11 @@ export interface Playlist {
   ownerId: string;
   ownerName: string | null;
   relationship: 'owner' | 'shared' | 'public';
+  myRole: 'owner' | 'editor' | 'viewer';
+  canEditTracks: boolean;
+  canManage: boolean;
   canEdit: boolean;
+  revision: number;
   shareCount: number;
   trackCount: number;
   durationSeconds: number;
@@ -84,6 +88,7 @@ export interface PlaylistShare {
   userId: string;
   displayName: string | null;
   email: string;
+  role: 'viewer' | 'editor';
   sharedAt: string;
 }
 

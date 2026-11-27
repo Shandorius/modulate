@@ -153,12 +153,28 @@ export class LibraryService {
     return response.data;
   }
 
-  async shareWith(id: string, userId: string): Promise<PlaylistShare[]> {
+  async shareWith(
+    id: string,
+    userId: string,
+    role: 'viewer' | 'editor' = 'viewer',
+  ): Promise<PlaylistShare[]> {
     const response = await this.api.post<{ data: PlaylistShare[] }>(
       `/playlists/${id}/shares`,
-      { userId },
+      { userId, role },
     );
     await this.load(true);
+    return response.data;
+  }
+
+  async updateShareRole(
+    id: string,
+    userId: string,
+    role: 'viewer' | 'editor',
+  ): Promise<PlaylistShare[]> {
+    const response = await this.api.patch<{ data: PlaylistShare[] }>(
+      `/playlists/${id}/shares/${userId}`,
+      { role },
+    );
     return response.data;
   }
 
@@ -193,10 +209,14 @@ export class LibraryService {
   async reorderPlaylist(
     playlistId: string,
     trackIds: string[],
+    expectedRevision?: number,
   ): Promise<Playlist> {
     const response = await this.api.put<{ data: Playlist }>(
       `/playlists/${playlistId}/order`,
-      { trackIds },
+      {
+        trackIds,
+        ...(expectedRevision === undefined ? {} : { expectedRevision }),
+      },
     );
     this.playlists.update((items) =>
       items.map((item) => (item.id === playlistId ? response.data : item)),

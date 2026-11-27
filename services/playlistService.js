@@ -25,6 +25,21 @@ function relationshipExpression(alias = 'p') {
   END`;
 }
 
+function roleExpression(alias = 'p') {
+  return `CASE
+    WHEN ${alias}.user_id = $1 THEN 'owner'
+    WHEN EXISTS (
+      SELECT 1 FROM playlist_shares ps
+      WHERE ps.playlist_id = ${alias}.id AND ps.user_id = $1
+    ) THEN (
+      SELECT ps.role FROM playlist_shares ps
+      WHERE ps.playlist_id = ${alias}.id AND ps.user_id = $1
+      LIMIT 1
+    )
+    ELSE 'viewer'
+  END`;
+}
+
 const playlistProjection = (alias = 'p') => `
   ${alias}.*,
   owner.display_name AS owner_name,
@@ -38,7 +53,8 @@ const playlistProjection = (alias = 'p') => `
     WHERE pt2.playlist_id = ${alias}.id AND t2.artwork_path IS NOT NULL
     ORDER BY pt2.position ASC, pt2.added_at ASC
     LIMIT 1) AS artwork_track_id,
-  ${relationshipExpression(alias)} AS relationship`;
+  ${relationshipExpression(alias)} AS relationship,
+  ${roleExpression(alias)} AS my_role`;
 
 function presentPlaylist(row, tracks = null, baseUrl = '', userId = null) {
   const artworkUrl =
@@ -54,7 +70,13 @@ function presentPlaylist(row, tracks = null, baseUrl = '', userId = null) {
     ownerId: row.user_id,
     ownerName: row.owner_name || null,
     relationship: row.relationship || 'owner',
-    canEdit: userId ? row.user_id === userId : false,
+    myRole: row.my_role || 'viewer',
+    canEditTracks:
+      Boolean(userId) &&
+      (row.user_id === userId || row.my_role === 'editor'),
+    canManage: Boolean(userId) && row.user_id === userId,
+    canEdit: Boolean(userId) && row.user_id === userId,
+    revision: Number(row.revision || 0),
     shareCount: Number(row.share_count || 0),
     trackCount: Number(row.track_count || (tracks ? tracks.length : 0)),
     durationSeconds: Number(row.duration_seconds || 0),
@@ -115,6 +137,25 @@ async function requireOwner(userId, playlistId, db = pool) {
   throw notFound('Playlist not found.');
 }
 
+async function requireEditor(userId, playlistId, db = pool) {
+  const { rows } = await db.query(
+    `SELECT p.*, ps.role AS my_role
+     FROM playlists p
+     LEFT JOIN playlist_shares ps
+       ON ps.playlist_id = p.id AND ps.user_id = $2
+     WHERE p.id = $1`,
+    [playlistId, userId],
+  );
+  const playlist = rows[0];
+  if (!playlist) throw notFound('Playlist not found.');
+  if (playlist.user_id === userId) return playlist;
+  if (playlist.my_role === 'editor') return playlist;
+  if (playlist.visibility === 'public' || playlist.my_role) {
+    throw forbidden('Only the owner or an editor can change this playlist.');
+  }
+  throw notFound('Playlist not found.');
+}
+
 async function get(userId, playlistId, baseUrl = '') {
   const playlist = await getRow(userId, playlistId);
   if (!playlist) throw notFound('Playlist not found.');
@@ -169,7 +210,9 @@ async function update(userId, playlistId, input) {
   if (!sets.length) throw badRequest('Nothing to update.');
   values.push(playlistId);
   await pool.query(
-    `UPDATE playlists SET ${sets.join(', ')} WHERE id = $${values.length}`,
+    `UPDATE playlists
+     SET ${sets.join(', ')}, revision = revision + 1, updated_at = now()
+     WHERE id = $${values.length}`,
     values,
   );
   return get(userId, playlistId);
@@ -186,7 +229,7 @@ async function remove(userId, playlistId) {
 }
 
 async function addTrack(userId, playlistId, trackId) {
-  await requireOwner(userId, playlistId);
+  await requireEditor(userId, playlistId);
   const track = await trackService.getRawRow(trackId);
   if (!track) throw notFound('Track not found.');
   await withTransaction(async (client) => {
@@ -204,28 +247,38 @@ async function addTrack(userId, playlistId, trackId) {
        VALUES ($1, $2, $3)`,
       [playlistId, trackId, positionRows[0].position],
     );
-    await client.query('UPDATE playlists SET updated_at = now() WHERE id = $1', [
-      playlistId,
-    ]);
+    await client.query(
+      'UPDATE playlists SET revision = revision + 1, updated_at = now() WHERE id = $1',
+      [playlistId],
+    );
   });
   return get(userId, playlistId);
 }
 
 async function removeTrack(userId, playlistId, trackId) {
-  await requireOwner(userId, playlistId);
+  await requireEditor(userId, playlistId);
   const { rowCount } = await pool.query(
     'DELETE FROM playlist_tracks WHERE playlist_id = $1 AND track_id = $2',
     [playlistId, trackId],
   );
   if (!rowCount) throw notFound('That track is not in this playlist.');
-  await pool.query('UPDATE playlists SET updated_at = now() WHERE id = $1', [
-    playlistId,
-  ]);
+  await pool.query(
+    'UPDATE playlists SET revision = revision + 1, updated_at = now() WHERE id = $1',
+    [playlistId],
+  );
   return get(userId, playlistId);
 }
 
-async function reorder(userId, playlistId, trackIds) {
-  await requireOwner(userId, playlistId);
+async function reorder(userId, playlistId, trackIds, expectedRevision = null) {
+  const playlist = await requireEditor(userId, playlistId);
+  if (
+    expectedRevision !== null &&
+    Number(expectedRevision) !== Number(playlist.revision || 0)
+  ) {
+    throw conflict(
+      'This playlist changed while you were editing. Reload it and try again.',
+    );
+  }
   await withTransaction(async (client) => {
     const { rows } = await client.query(
       'SELECT track_id FROM playlist_tracks WHERE playlist_id = $1',
@@ -245,9 +298,10 @@ async function reorder(userId, playlistId, trackIds) {
         [index, playlistId, trackIds[index]],
       );
     }
-    await client.query('UPDATE playlists SET updated_at = now() WHERE id = $1', [
-      playlistId,
-    ]);
+    await client.query(
+      'UPDATE playlists SET revision = revision + 1, updated_at = now() WHERE id = $1',
+      [playlistId],
+    );
   });
   return get(userId, playlistId);
 }
@@ -267,7 +321,7 @@ async function trackIds(userId, playlistId) {
 async function listShares(userId, playlistId) {
   await requireOwner(userId, playlistId);
   const { rows } = await pool.query(
-    `SELECT u.id, u.display_name, u.email, ps.created_at
+    `SELECT u.id, u.display_name, u.email, ps.role, ps.created_at
      FROM playlist_shares ps
      JOIN users u ON u.id = ps.user_id
      WHERE ps.playlist_id = $1
@@ -278,12 +332,16 @@ async function listShares(userId, playlistId) {
     userId: row.id,
     displayName: row.display_name,
     email: row.email,
+    role: row.role || 'viewer',
     sharedAt: row.created_at,
   }));
 }
 
-async function share(userId, playlistId, targetUserId) {
+async function share(userId, playlistId, targetUserId, role = 'viewer') {
   await requireOwner(userId, playlistId);
+  if (!['viewer', 'editor'].includes(role)) {
+    throw badRequest('Share role must be viewer or editor.');
+  }
   if (String(targetUserId) === String(userId)) {
     throw badRequest('You already own this playlist.');
   }
@@ -293,10 +351,26 @@ async function share(userId, playlistId, targetUserId) {
   );
   if (!target[0]) throw notFound('User not found.');
   await pool.query(
-    `INSERT INTO playlist_shares (playlist_id, user_id)
-     VALUES ($1, $2) ON CONFLICT DO NOTHING`,
-    [playlistId, targetUserId],
+    `INSERT INTO playlist_shares (playlist_id, user_id, role)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (playlist_id, user_id)
+     DO UPDATE SET role = EXCLUDED.role`,
+    [playlistId, targetUserId, role],
   );
+  return listShares(userId, playlistId);
+}
+
+async function updateShareRole(userId, playlistId, targetUserId, role) {
+  await requireOwner(userId, playlistId);
+  if (!['viewer', 'editor'].includes(role)) {
+    throw badRequest('Share role must be viewer or editor.');
+  }
+  const { rowCount } = await pool.query(
+    `UPDATE playlist_shares SET role = $1
+     WHERE playlist_id = $2 AND user_id = $3`,
+    [role, playlistId, targetUserId],
+  );
+  if (!rowCount) throw notFound('That user does not have access to this playlist.');
   return listShares(userId, playlistId);
 }
 
@@ -322,6 +396,7 @@ module.exports = {
   trackIds,
   listShares,
   share,
+  updateShareRole,
   unshare,
   presentPlaylist,
 };

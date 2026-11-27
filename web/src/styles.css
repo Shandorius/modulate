@@ -2558,3 +2558,27 @@ code,
   pointer-events: none;
   opacity: 0.4;
 }
+
+/* Collaborative playlist sharing ----------------------------------------- */
+
+.share-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px auto;
+}
+
+.share-role {
+  width: 112px;
+  min-height: 36px;
+  padding: 0 28px 0 9px;
+  font-size: 0.72rem;
+}
+
+@media (max-width: 620px) {
+  .share-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .share-role {
+    width: 100%;
+  }
+}

@@ -107,7 +107,10 @@ router.post(
   '/:id/shares',
   validate({
     params: z.object({ id: playlistId }),
-    body: z.object({ userId: z.string().uuid() }),
+    body: z.object({
+      userId: z.string().uuid(),
+      role: z.enum(['viewer', 'editor']).optional(),
+    }),
   }),
   async (req, res, next) => {
     try {
@@ -116,6 +119,29 @@ router.post(
           req.user.id,
           req.params.id,
           req.validated.body.userId,
+          req.validated.body.role || 'viewer',
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.patch(
+  '/:id/shares/:userId',
+  validate({
+    params: z.object({ id: playlistId, userId: z.string().uuid() }),
+    body: z.object({ role: z.enum(['viewer', 'editor']) }),
+  }),
+  async (req, res, next) => {
+    try {
+      res.json({
+        data: await playlistService.updateShareRole(
+          req.user.id,
+          req.params.id,
+          req.params.userId,
+          req.validated.body.role,
         ),
       });
     } catch (error) {
@@ -210,7 +236,10 @@ router.put(
   '/:id/order',
   validate({
     params: z.object({ id: playlistId }),
-    body: z.object({ trackIds: z.array(z.string().uuid()).max(2000) }),
+    body: z.object({
+      trackIds: z.array(z.string().uuid()).max(2000),
+      expectedRevision: z.coerce.number().int().min(0).optional(),
+    }),
   }),
   async (req, res, next) => {
     try {
@@ -219,6 +248,7 @@ router.put(
           req.user.id,
           req.params.id,
           req.validated.body.trackIds,
+          req.validated.body.expectedRevision ?? null,
         ),
       });
     } catch (error) {
