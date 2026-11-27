@@ -140,6 +140,83 @@ If you keep it private, authenticate with a token that has `read:packages`:
 echo "$GHCR_TOKEN" | docker login ghcr.io -u Shandorius --password-stdin
 ```
 
+### Host folder storage instead of named volumes
+
+Named volumes are the default, but you can keep all persistent data in normal
+host folders. The repository includes a ready-to-use
+[`docker-compose.bind.yml`](docker-compose.bind.yml):
+
+```bash
+mkdir -p ~/modulate
+cd ~/modulate
+curl -fsSLO \
+  https://raw.githubusercontent.com/Shandorius/modulate/main/docker-compose.bind.yml
+curl -fsSL \
+  https://raw.githubusercontent.com/Shandorius/modulate/main/.env.server.example \
+  -o .env
+```
+
+Set:
+
+```env
+POSTGRES_PASSWORD=<generated-hex-password>
+APP_PORT=3000
+MODULATE_IMAGE=ghcr.io/shandorius/modulate:latest
+```
+
+The relevant storage mapping is:
+
+```yaml
+volumes:
+  - ./data:/data
+  - ./postgres:/var/lib/postgresql/data
+```
+
+Create the folders and set the container user ownership before the first
+start:
+
+```bash
+mkdir -p data postgres
+sudo chown -R 1000:1000 data      # Modulate runs as node UID 1000
+sudo chown -R 70:70 postgres      # postgres:17-alpine runs as UID 70
+```
+
+Start:
+
+```bash
+docker compose -f docker-compose.bind.yml pull
+docker compose -f docker-compose.bind.yml up -d
+```
+
+The folder layout becomes:
+
+```text
+~/modulate/
+├── docker-compose.bind.yml
+├── .env
+├── data/
+│   ├── media/
+│   ├── session-secret
+│   └── stream-secret
+└── postgres/
+```
+
+Notes:
+
+- `docker compose ... down -v` does not delete bind-mounted host folders.
+- Do not change `POSTGRES_PASSWORD` after PostgreSQL has initialized.
+- Keep `postgres/` on a local filesystem, not NFS/SMB.
+- On SELinux hosts, use `./data:/data:Z` and
+  `./postgres:/var/lib/postgresql/data:Z`.
+
+Back up bind-mount installs with:
+
+```bash
+tar czf modulate-data-$(date +%F).tar.gz data
+docker compose -f docker-compose.bind.yml exec -T db \
+  pg_dump -U modulate -d modulate -Fc > modulate-db-$(date +%F).dump
+```
+
 ### Published ports
 
 Only the app port is published:

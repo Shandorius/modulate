@@ -19,3 +19,4 @@ web/android/app/build/
 web/ios/App/build/
 web/ios/App/DerivedData/
 web/ios/App/Pods/
+postgres/

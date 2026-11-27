@@ -135,7 +135,31 @@ docker compose -f docker-compose.prod.yml up -d
 
 Migrations run inside the app container before the server starts.
 
-## 7. Backups
+## 7. Optional host-folder storage
+
+The default Compose file uses Docker named volumes. To use normal host folders
+instead, use `docker-compose.bind.yml`:
+
+```bash
+mkdir -p data postgres
+sudo chown -R 1000:1000 data
+sudo chown -R 70:70 postgres
+docker compose -f docker-compose.bind.yml pull
+docker compose -f docker-compose.bind.yml up -d
+```
+
+It maps:
+
+```text
+./data      → /data
+./postgres  → /var/lib/postgresql/data
+```
+
+The app runs as UID 1000 in the image; PostgreSQL Alpine runs as UID 70. Keep
+the PostgreSQL folder on local storage and use `:Z` on the mounts if SELinux is
+enabled. See the main README for the full host-folder example.
+
+## 8. Backups
 
 Install the systemd timer:
 
