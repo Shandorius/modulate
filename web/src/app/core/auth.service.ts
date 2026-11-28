@@ -2,6 +2,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Capacitor } from '@capacitor/core';
 import { APP_NAME } from './app-config';
 import { ApiService } from './api.service';
+import { LibraryService } from './library.service';
 import { TokenStorageService } from './token-storage.service';
 import { Entitlements, MeResponse, Profile, User } from './models';
 
@@ -13,6 +14,7 @@ interface AuthPayload {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(ApiService);
+  private readonly library = inject(LibraryService);
   readonly tokens = inject(TokenStorageService);
 
   readonly user = signal<User | null>(null);
@@ -121,6 +123,7 @@ export class AuthService {
     } else {
       await this.api.auth('POST', '/auth/login', { email, password });
     }
+    this.library.reset();
     await this.refreshMe();
   }
 
@@ -154,6 +157,7 @@ export class AuthService {
         displayName,
       });
     }
+    this.library.reset();
     await this.refreshMe();
   }
 
@@ -206,5 +210,6 @@ export class AuthService {
     this.profile.set(null);
     this.tier.set('oss');
     this.entitlements.set(null);
+    this.library.reset();
   }
 }

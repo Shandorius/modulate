@@ -339,6 +339,21 @@ test('streaming, cover art, and favourites work through the API', async () => {
     'Cover art',
   );
 
+  const lyrics = await rest(issued.token, 'getLyrics', {
+    artist: 'Media',
+    title: 'Artwork song',
+  }).expect(200);
+  assert.equal(lyrics.body['subsonic-response'].status, 'failed');
+  assert.equal(lyrics.body['subsonic-response'].error.code, 70);
+
+  const structuredLyrics = await rest(issued.token, 'getLyricsBySongId', {
+    id: track.id,
+  }).expect(200);
+  assert.deepEqual(
+    structuredLyrics.body['subsonic-response'].lyricsList.structuredLyrics,
+    [],
+  );
+
   const folders = await rest(issued.token, 'getMusicFolders').expect(200);
   assert.equal(
     folders.body['subsonic-response'].musicFolders.musicFolder[0].id,

@@ -29,6 +29,19 @@ export class LibraryService {
   readonly loading = signal(false);
   readonly error = signal<string | null>(null);
 
+  /** Drop every cached library view when the signed-in account changes. */
+  reset(): void {
+    this.tracks.set([]);
+    this.trackTotal.set(0);
+    this.trackSort.set('recent');
+    this.playlists.set([]);
+    this.albums.set([]);
+    this.summary.set(null);
+    this.loading.set(false);
+    this.loadingTracks.set(false);
+    this.error.set(null);
+  }
+
   async load(force = false): Promise<void> {
     if (
       !force &&

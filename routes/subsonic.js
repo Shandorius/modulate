@@ -215,6 +215,18 @@ router.all('/:method', async (req, res) => {
       return res.json(envelope({ playlist }));
     }
 
+    if (method === 'getLyrics') {
+      // Music Assistant's Open Subsonic provider probes the legacy lyrics
+      // endpoint while parsing a track. It only tolerates a not-found answer
+      // (code 70); a generic error aborts playback. Modulate has no lyrics
+      // store, so "not found" is the honest response.
+      return failure(res, 70, 'Lyrics not found.');
+    }
+
+    if (method === 'getLyricsBySongId') {
+      return res.json(envelope({ lyricsList: { structuredLyrics: [] } }));
+    }
+
     if (method === 'getStarred2') {
       return res.json(envelope({ starred2: await subsonic.starred(userId) }));
     }
