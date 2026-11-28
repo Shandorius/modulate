@@ -123,7 +123,8 @@ sheet.
 
 ## Screens
 
-1. **Home** — continue listening, recently added, playlists, library summary.
+1. **Home** — continue listening, playlists (with a create button), recently
+   added, and the library summary.
 2. **Search** — local search across tracks, artists, albums, and playlists.
 3. **Library** — tracks, playlists, albums, imports, favourites.
 4. **Collection** — playlist or album detail with queue and playlist actions.

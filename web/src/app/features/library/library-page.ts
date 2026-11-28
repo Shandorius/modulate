@@ -1,6 +1,6 @@
 import { Component, OnDestroy, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { IngestService } from '../../core/ingest.service';
@@ -262,6 +262,7 @@ export class LibraryPage implements OnInit, OnDestroy {
   readonly api = inject(ApiService);
   readonly library = inject(LibraryService);
   private readonly auth = inject(AuthService);
+  private readonly route = inject(ActivatedRoute);
   private readonly player = inject(PlayerService);
   private readonly ingest = inject(IngestService);
   private readonly toast = inject(ToastService);
@@ -277,6 +278,10 @@ export class LibraryPage implements OnInit, OnDestroy {
   private refreshTimer: ReturnType<typeof setInterval> | null = null;
 
   async ngOnInit(): Promise<void> {
+    const requested = this.route.snapshot.queryParamMap.get('tab');
+    if (requested === 'tracks' || requested === 'playlists' || requested === 'albums') {
+      this.tab.set(requested);
+    }
     await this.library.load();
   }
 

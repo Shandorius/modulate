@@ -1,5 +1,6 @@
-import { Component, OnInit, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
+import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuthService } from '../../core/auth.service';
 import { LibraryService } from '../../core/library.service';
@@ -11,7 +12,7 @@ import { Icon } from '../shared/icon';
 
 @Component({
   selector: 'app-home-page',
-  imports: [RouterLink, TrackRow, Icon],
+  imports: [FormsModule, RouterLink, TrackRow, Icon],
   template: `
     <main class="page">
       <section class="home-hero">
@@ -88,34 +89,19 @@ import { Icon } from '../shared/icon';
         <section class="section">
           <div class="section__head">
             <div>
-              <p class="eyebrow">Recently added</p>
-              <h2 class="section__title">Freshly filed</h2>
+              <p class="eyebrow">In rotation</p>
+              <h2 class="section__title">Playlists</h2>
             </div>
-            <a class="section__link" routerLink="/app/library">Open library</a>
-          </div>
-          <div class="track-list">
-            @for (track of summary()?.recentlyAdded || []; track track.id) {
-              <app-track-row
-                [track]="track"
-                (play)="play($event)"
-                (queue)="queue($event)"
-                (favorite)="favorite($event)"
-              />
-            }
-          </div>
-        </section>
-
-        @if (library.playlists().length) {
-          <section class="section">
-            <div class="section__head">
-              <div>
-                <p class="eyebrow">In rotation</p>
-                <h2 class="section__title">Playlists</h2>
-              </div>
-              <a class="section__link" routerLink="/app/library">All playlists</a>
+            <div class="section__actions">
+              <button class="btn btn--ghost btn--sm" type="button" (click)="openCreate()">
+                <app-icon name="plus" [size]="15" /> New playlist
+              </button>
+              <a class="section__link" routerLink="/app/library" [queryParams]="{ tab: 'playlists' }">All playlists</a>
             </div>
+          </div>
+          @if (playlists().length) {
             <div class="card-grid">
-              @for (playlist of library.playlists().slice(0, 4); track playlist.id) {
+              @for (playlist of playlists(); track playlist.id) {
                 <a class="playlist-card" [routerLink]="['/app/collection/playlist', playlist.id]">
                   <div class="playlist-card__art">
                     @if (playlist.artworkUrl) {
@@ -132,8 +118,63 @@ import { Icon } from '../shared/icon';
                 </a>
               }
             </div>
+          } @else {
+            <div class="home-empty">
+              <p class="muted">No playlists yet. Group tracks into a mix for a room, a mood, or a drive.</p>
+              <button class="btn btn--primary btn--sm" type="button" (click)="openCreate()">Create a playlist</button>
+            </div>
+          }
+        </section>
+
+        <section class="section">
+          <div class="section__head">
+            <div>
+              <p class="eyebrow">Recently added</p>
+              <h2 class="section__title">Freshly filed</h2>
+            </div>
+            <a class="section__link" routerLink="/app/library">Open library</a>
+          </div>
+          <div class="track-list">
+            @for (track of summary()?.recentlyAdded || []; track track.id) {
+              <app-track-row
+                [track]="track"
+                (play)="play($event)"
+                (queue)="queue($event)"
+                (favorite)="favorite($event)"
+              />
+            }
+          </div>
+        </section>
+      }
+
+      @if (createOpen()) {
+        <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="New playlist">
+          <section class="modal modal--compact">
+            <header class="modal__head">
+              <div>
+                <p class="eyebrow">Start a collection</p>
+                <h2>New playlist</h2>
+              </div>
+              <button class="icon-btn" type="button" aria-label="Close" (click)="closeCreate()"><app-icon name="close" [size]="18" /></button>
+            </header>
+            <form class="create-form" (ngSubmit)="createPlaylist()">
+              <input
+                class="input"
+                name="playlistName"
+                [(ngModel)]="playlistName"
+                placeholder="Playlist name"
+                aria-label="Playlist name"
+                maxlength="180"
+              />
+              <div class="modal__actions">
+                <button class="btn btn--quiet" type="button" (click)="closeCreate()">Cancel</button>
+                <button class="btn btn--primary" type="submit" [disabled]="!playlistName.trim() || creating()">
+                  {{ creating() ? 'Creating…' : 'Create' }}
+                </button>
+              </div>
+            </form>
           </section>
-        }
+        </div>
       }
     </main>
   `,
@@ -143,7 +184,13 @@ export class HomePage implements OnInit {
   readonly auth = inject(AuthService);
   readonly library = inject(LibraryService);
   readonly player = inject(PlayerService);
+  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+
+  readonly createOpen = signal(false);
+  readonly creating = signal(false);
+  readonly playlists = computed(() => this.library.playlists().slice(0, 4));
+  playlistName = '';
 
   get summary() {
     return this.library.summary;
@@ -151,6 +198,33 @@ export class HomePage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await this.library.load();
+  }
+
+  openCreate(): void {
+    this.playlistName = '';
+    this.createOpen.set(true);
+  }
+
+  closeCreate(): void {
+    if (this.creating()) return;
+    this.createOpen.set(false);
+  }
+
+  async createPlaylist(): Promise<void> {
+    const name = this.playlistName.trim();
+    if (!name || this.creating()) return;
+    this.creating.set(true);
+    try {
+      const playlist = await this.library.createPlaylist(name);
+      this.createOpen.set(false);
+      this.playlistName = '';
+      this.toast.show('Playlist created.');
+      await this.router.navigate(['/app/collection/playlist', playlist.id]);
+    } catch (error) {
+      this.toast.show((error as Error).message);
+    } finally {
+      this.creating.set(false);
+    }
   }
 
   async playLibrary(): Promise<void> {
