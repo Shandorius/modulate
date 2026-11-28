@@ -35,6 +35,32 @@ router.post(
 );
 
 router.get(
+  '/:id/available-tracks',
+  validate({
+    params: z.object({ id: playlistId }),
+    query: z.object({
+      q: z.string().max(200).optional(),
+      sort: z.enum(['recent', 'oldest', 'title', 'artist', 'album']).optional(),
+      limit: z.coerce.number().int().min(1).max(100).optional(),
+      offset: z.coerce.number().int().min(0).optional(),
+    }),
+  }),
+  async (req, res, next) => {
+    try {
+      res.json({
+        data: await playlistService.availableTracks(
+          req.user.id,
+          req.params.id,
+          req.validated.query,
+        ),
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
   '/:id',
   validate({ params: z.object({ id: playlistId }) }),
   async (req, res, next) => {

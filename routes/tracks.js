@@ -14,7 +14,7 @@ router.get(
     query: z.object({
       q: z.string().max(200).optional(),
       favorite: z.enum(['true', 'false']).optional(),
-      sort: z.enum(['recent', 'title', 'artist', 'album']).optional(),
+      sort: z.enum(['recent', 'oldest', 'title', 'artist', 'album']).optional(),
       limit: z.coerce.number().int().min(1).max(200).optional(),
       offset: z.coerce.number().int().min(0).optional(),
     }),
@@ -61,6 +61,33 @@ router.get(
         req.validated.query.name,
       );
       res.json({ data: { album: req.validated.query.name, tracks } });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.get(
+  '/ids',
+  validate({
+    query: z.object({
+      q: z.string().max(200).optional(),
+      favorite: z.enum(['true', 'false']).optional(),
+      sort: z.enum(['recent', 'oldest', 'title', 'artist', 'album']).optional(),
+    }),
+  }),
+  async (req, res, next) => {
+    try {
+      const { favorite, ...query } = req.validated.query;
+      res.json({
+        data: {
+          ids: await trackService.allIds(req.user.id, {
+            ...query,
+            favorite:
+              favorite === undefined ? undefined : favorite === 'true',
+          }),
+        },
+      });
     } catch (error) {
       next(error);
     }

@@ -306,6 +306,15 @@ async function reorder(userId, playlistId, trackIds, expectedRevision = null) {
   return get(userId, playlistId);
 }
 
+async function availableTracks(userId, playlistId, input = {}, baseUrl = '') {
+  await requireEditor(userId, playlistId);
+  return trackService.list(
+    userId,
+    { ...input, excludePlaylistId: playlistId },
+    baseUrl,
+  );
+}
+
 async function trackIds(userId, playlistId) {
   const playlist = await getRow(userId, playlistId);
   if (!playlist) throw notFound('Playlist not found.');
@@ -394,6 +403,7 @@ module.exports = {
   removeTrack,
   reorder,
   trackIds,
+  availableTracks,
   listShares,
   share,
   updateShareRole,

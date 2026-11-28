@@ -5,6 +5,7 @@ const mediaService = require('./mediaService');
 
 const SORTS = new Map([
   ['recent', 't.created_at DESC'],
+  ['oldest', 't.created_at ASC'],
   ['title', 'lower(t.title) ASC, lower(t.artist) ASC'],
   ['artist', 'lower(t.artist) ASC, lower(t.title) ASC'],
   [
@@ -96,6 +97,15 @@ async function list(userId, input = {}, baseUrl = '') {
        ) = $${values.length}`,
     );
   }
+  if (input.excludePlaylistId) {
+    values.push(input.excludePlaylistId);
+    where.push(
+      `NOT EXISTS (
+         SELECT 1 FROM playlist_tracks pt
+         WHERE pt.playlist_id = $${values.length} AND pt.track_id = t.id
+       )`,
+    );
+  }
 
   values.push(limit);
   const limitIndex = values.length;
@@ -125,6 +135,53 @@ async function list(userId, input = {}, baseUrl = '') {
     tracks: rows.map((row) => presentTrack(row, baseUrl)),
     total: countRows[0]?.total || 0,
   };
+}
+
+async function allIds(userId, input = {}) {
+  const query = String(input.q || '').trim();
+  const favorite =
+    input.favorite === true || String(input.favorite) === 'true'
+      ? true
+      : input.favorite === false || String(input.favorite) === 'false'
+        ? false
+        : null;
+  const sort = SORTS.has(input.sort) ? input.sort : 'recent';
+  const values = [userId];
+  const where = ['$1::uuid IS NOT NULL'];
+
+  if (query) {
+    values.push(`%${query}%`);
+    const index = values.length;
+    where.push(
+      `(t.title ILIKE $${index} OR t.artist ILIKE $${index} OR COALESCE(t.album, '') ILIKE $${index})`,
+    );
+  }
+  if (favorite !== null) {
+    values.push(favorite);
+    where.push(
+      `EXISTS (
+         SELECT 1 FROM track_favorites f
+         WHERE f.track_id = t.id AND f.user_id = $1
+       ) = $${values.length}`,
+    );
+  }
+  if (input.excludePlaylistId) {
+    values.push(input.excludePlaylistId);
+    where.push(
+      `NOT EXISTS (
+         SELECT 1 FROM playlist_tracks pt
+         WHERE pt.playlist_id = $${values.length} AND pt.track_id = t.id
+       )`,
+    );
+  }
+
+  const { rows } = await pool.query(
+    `SELECT t.id FROM tracks t
+     WHERE ${where.join(' AND ')}
+     ORDER BY ${SORTS.get(sort)}`,
+    values,
+  );
+  return rows.map((row) => row.id);
 }
 
 async function albums(userId, baseUrl = '') {
@@ -308,6 +365,7 @@ module.exports = {
   get,
   getRawRow,
   list,
+  allIds,
   albums,
   byAlbum,
   update,

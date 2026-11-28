@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../core/api.service';
 import { AuraService } from '../../core/aura.service';
 import { DirectoryService } from '../../core/directory.service';
-import { LibraryService } from '../../core/library.service';
+import { LibraryService, TrackSort } from '../../core/library.service';
 import {
   DirectoryUser,
   Playlist,
@@ -59,7 +59,7 @@ import { Icon } from '../shared/icon';
             <div class="button-row">
               <button class="btn btn--primary" type="button" [disabled]="!tracks().length" (click)="playAll()">Play</button>
               @if (isPlaylist() && playlist()?.canEditTracks) {
-                <button class="btn btn--ghost" type="button" (click)="showAdd.set(true)">Add tracks</button>
+                <button class="btn btn--ghost" type="button" (click)="openAdd()">Add tracks</button>
                 <button class="btn btn--quiet" type="button" (click)="toggleReorder()">
                   <app-icon name="grip" [size]="16" /> {{ reorderMode() ? 'Done' : 'Reorder' }}
                 </button>
@@ -127,7 +127,7 @@ import { Icon } from '../shared/icon';
             <h2>{{ isPlaylist() ? 'This playlist is empty.' : 'This album has no tracks.' }}</h2>
             <p>{{ isPlaylist() ? 'Add tracks from your library to start shaping it.' : 'Import more music to fill this album.' }}</p>
             @if (isPlaylist() && playlist()?.canEditTracks) {
-              <button class="btn btn--primary" type="button" (click)="showAdd.set(true)">Add tracks</button>
+              <button class="btn btn--primary" type="button" (click)="openAdd()">Add tracks</button>
             }
           </section>
         }
@@ -135,17 +135,47 @@ import { Icon } from '../shared/icon';
 
       @if (showAdd()) {
         <div class="modal-backdrop" role="dialog" aria-modal="true" aria-label="Add tracks">
-          <section class="modal">
+          <section class="modal modal--add">
             <header class="modal__head">
               <div>
                 <p class="eyebrow">From the shared library</p>
                 <h2>Add tracks</h2>
               </div>
-              <button class="icon-btn" type="button" aria-label="Close" (click)="showAdd.set(false)"><app-icon name="close" [size]="18" /></button>
+              <button class="icon-btn" type="button" aria-label="Close" (click)="closeAdd()"><app-icon name="close" [size]="18" /></button>
             </header>
-            @if (availableTracks().length) {
+
+            <div class="add-tools">
+              <label class="search-field add-search">
+                <app-icon name="search" [size]="16" />
+                <input
+                  class="input"
+                  type="search"
+                  name="addQuery"
+                  [ngModel]="addQuery()"
+                  (ngModelChange)="onAddQueryChange($event)"
+                  placeholder="Search title, artist, or album…"
+                  aria-label="Search the library"
+                  autocomplete="off"
+                />
+              </label>
+              <label class="sort-control">
+                <span>Sort</span>
+                <select class="select" [value]="addSort()" (change)="changeAddSort($event)" aria-label="Sort results">
+                  <option value="recent">Newest first</option>
+                  <option value="oldest">Oldest first</option>
+                  <option value="title">Title A–Z</option>
+                  <option value="artist">Artist A–Z</option>
+                  <option value="album">Album A–Z</option>
+                </select>
+              </label>
+            </div>
+
+            @if (addResults().length) {
+              <p class="add-count">
+                Showing {{ addResults().length }} of {{ addTotal() }} match{{ addTotal() === 1 ? '' : 'es' }}
+              </p>
               <div class="track-list track-list--compact">
-                @for (track of availableTracks(); track track.id) {
+                @for (track of addResults(); track track.id) {
                   <app-track-row
                     [track]="track"
                     [showAdd]="true"
@@ -156,8 +186,30 @@ import { Icon } from '../shared/icon';
                   />
                 }
               </div>
+              @if (addResults().length < addTotal()) {
+                <button
+                  class="btn btn--ghost btn--block load-more"
+                  type="button"
+                  [disabled]="addLoadingMore()"
+                  (click)="loadMoreAdd()"
+                >
+                  {{ addLoadingMore() ? 'Loading…' : 'Load more' }}
+                </button>
+              }
+            } @else if (addLoading()) {
+              <div class="section">
+                <div class="skeleton skeleton--row"></div>
+                <div class="skeleton skeleton--row"></div>
+                <div class="skeleton skeleton--row"></div>
+              </div>
             } @else {
-              <p class="empty-copy">Every track in the library is already in this playlist.</p>
+              <p class="empty-copy">
+                @if (addQuery().trim()) {
+                  No tracks match “{{ addQuery().trim() }}” that aren’t already in this playlist.
+                } @else {
+                  Every track in the library is already in this playlist.
+                }
+              </p>
             }
           </section>
         </div>
@@ -247,6 +299,12 @@ export class CollectionPage implements OnInit, OnDestroy {
   readonly subtitle = signal('');
   readonly artworkUrl = signal<string | null>(null);
   readonly showAdd = signal(false);
+  readonly addResults = signal<Track[]>([]);
+  readonly addTotal = signal(0);
+  readonly addQuery = signal('');
+  readonly addSort = signal<TrackSort>('recent');
+  readonly addLoading = signal(false);
+  readonly addLoadingMore = signal(false);
   readonly renaming = signal(false);
   readonly shareOpen = signal(false);
   readonly shares = signal<PlaylistShare[]>([]);
@@ -256,15 +314,12 @@ export class CollectionPage implements OnInit, OnDestroy {
   private lastSavedTracks: Track[] = [];
   private orderTimer: ReturnType<typeof setTimeout> | null = null;
   private orderSequence = 0;
+  private addTimer: ReturnType<typeof setTimeout> | null = null;
+  private addSequence = 0;
 
   playlistName = '';
   selectedUserId = '';
   shareRole: 'viewer' | 'editor' = 'viewer';
-
-  availableTracks(): Track[] {
-    const used = new Set(this.tracks().map((track) => track.id));
-    return this.library.tracks().filter((track) => !used.has(track.id));
-  }
 
   availableUsers(): DirectoryUser[] {
     const shared = new Set(this.shares().map((share) => share.userId));
@@ -360,9 +415,73 @@ export class CollectionPage implements OnInit, OnDestroy {
       this.playlist.set(updated);
       this.tracks.set(updated.tracks || []);
       this.artworkUrl.set(updated.artworkUrl);
+      this.addResults.update((results) =>
+        results.filter((item) => item.id !== track.id),
+      );
+      this.addTotal.update((total) => Math.max(0, total - 1));
       this.toast.show(`Added “${track.title}”.`);
     } catch (error) {
       this.toast.show((error as Error).message);
+    }
+  }
+
+  openAdd(): void {
+    this.showAdd.set(true);
+    this.addQuery.set('');
+    this.addSort.set('recent');
+    void this.loadAddResults(false);
+  }
+
+  closeAdd(): void {
+    if (this.addTimer) clearTimeout(this.addTimer);
+    this.addTimer = null;
+    this.showAdd.set(false);
+  }
+
+  onAddQueryChange(value: string): void {
+    this.addQuery.set(value);
+    if (this.addTimer) clearTimeout(this.addTimer);
+    this.addTimer = setTimeout(() => {
+      this.addTimer = null;
+      void this.loadAddResults(false);
+    }, 250);
+  }
+
+  changeAddSort(event: Event): void {
+    this.addSort.set((event.target as HTMLSelectElement).value as TrackSort);
+    void this.loadAddResults(false);
+  }
+
+  async loadMoreAdd(): Promise<void> {
+    await this.loadAddResults(true);
+  }
+
+  private async loadAddResults(append: boolean): Promise<void> {
+    const playlist = this.playlist();
+    if (!playlist) return;
+    const sequence = ++this.addSequence;
+    if (append) this.addLoadingMore.set(true);
+    else this.addLoading.set(true);
+    try {
+      const data = await this.library.availableTracks(playlist.id, {
+        q: this.addQuery().trim(),
+        sort: this.addSort(),
+        limit: 50,
+        offset: append ? this.addResults().length : 0,
+      });
+      if (sequence !== this.addSequence) return;
+      this.addResults.set(
+        append ? [...this.addResults(), ...data.tracks] : data.tracks,
+      );
+      this.addTotal.set(data.total);
+    } catch (error) {
+      if (sequence !== this.addSequence) return;
+      this.toast.show((error as Error).message);
+    } finally {
+      if (sequence === this.addSequence) {
+        this.addLoading.set(false);
+        this.addLoadingMore.set(false);
+      }
     }
   }
 

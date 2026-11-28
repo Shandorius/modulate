@@ -65,7 +65,7 @@ type Tab = 'tracks' | 'playlists' | 'albums';
         <button class="segmented__item" [class.is-active]="tab() === 'albums'" type="button" (click)="tab.set('albums')">Albums</button>
       </div>
 
-      @if (library.loading() && !library.tracks().length) {
+      @if ((library.loading() || library.loadingTracks()) && !library.tracks().length) {
         <div class="section">
           <div class="skeleton skeleton--row"></div>
           <div class="skeleton skeleton--row"></div>
@@ -74,9 +74,26 @@ type Tab = 'tracks' | 'playlists' | 'albums';
       } @else if (tab() === 'tracks') {
         @if (library.tracks().length) {
           <section class="section">
-            <div class="section__head">
-              <h2 class="section__title">{{ library.tracks().length }} track{{ library.tracks().length === 1 ? '' : 's' }}</h2>
-              <button class="btn btn--quiet btn--sm" type="button" (click)="playAll()">Play all</button>
+            <div class="section__head section__head--sort">
+              <h2 class="section__title">
+                {{ library.trackTotal() }} track{{ library.trackTotal() === 1 ? '' : 's' }}
+                @if (library.tracks().length < library.trackTotal()) {
+                  <span class="section__meta"> · {{ library.tracks().length }} loaded</span>
+                }
+              </h2>
+              <div class="library-tools">
+                <label class="sort-control">
+                  <span>Sort</span>
+                  <select class="select" [value]="library.trackSort()" (change)="changeSort($event)" aria-label="Sort library">
+                    <option value="recent">Newest first</option>
+                    <option value="oldest">Oldest first</option>
+                    <option value="title">Title A–Z</option>
+                    <option value="artist">Artist A–Z</option>
+                    <option value="album">Album A–Z</option>
+                  </select>
+                </label>
+                <button class="btn btn--quiet btn--sm" type="button" (click)="playAll()">Play all</button>
+              </div>
             </div>
             <div class="track-list">
               @for (track of library.tracks(); track track.id) {
@@ -92,6 +109,11 @@ type Tab = 'tracks' | 'playlists' | 'albums';
                 />
               }
             </div>
+            @if (library.tracks().length < library.trackTotal()) {
+              <button class="btn btn--ghost btn--block load-more" type="button" (click)="loadMore()">
+                Load more
+              </button>
+            }
           </section>
         } @else {
           <section class="empty-state">
@@ -312,12 +334,28 @@ export class LibraryPage implements OnInit, OnDestroy {
 
   async playAll(): Promise<void> {
     const first = this.library.tracks()[0];
-    if (first) {
-      await this.player.playTrack(
-        first,
-        this.library.tracks().map((item) => item.id),
-      );
-    }
+    if (!first) return;
+    const ids = await this.library.allTrackIds({
+      sort: this.library.trackSort(),
+    });
+    await this.player.playTrack(first, ids);
+  }
+
+  async changeSort(event: Event): Promise<void> {
+    const sort = (event.target as HTMLSelectElement).value as
+      | 'recent'
+      | 'oldest'
+      | 'title'
+      | 'artist'
+      | 'album';
+    await this.library.loadTracks({ sort });
+  }
+
+  async loadMore(): Promise<void> {
+    await this.library.loadTracks({
+      sort: this.library.trackSort(),
+      append: true,
+    });
   }
 
   async queue(track: Track): Promise<void> {

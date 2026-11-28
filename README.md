@@ -81,6 +81,28 @@ Simultaneous reorders are protected by a playlist revision. If someone else
 changed the playlist first, the stale save is rejected and the editor is asked to
 reload instead of silently overwriting the other person's changes.
 
+## Browsing and adding tracks
+
+The Library track list loads from the server in pages rather than assuming the
+whole collection fits in memory:
+
+- **Sort** by newest first, oldest first, title, artist, or album.
+- **Load more** appends the next page while keeping the chosen sort.
+- **Play all** queues the entire library in the current sort order, not just the
+  loaded page.
+
+The **Add tracks** dialog searches the shared library on the server, so it stays
+usable for large collections:
+
+- Search by title, artist, or album with a short debounce.
+- Sort the same way, defaulting to **Newest first** for quick import triage.
+- Tracks already in the playlist are excluded by the server.
+- 50 results per page with a **Load more** button and a live match count.
+- Adding a track removes it from the results immediately; the dialog stays open
+  so several tracks can be added in a row.
+- Empty states distinguish “no matches” from “everything is already in this
+  playlist”.
+
 ## Screens
 
 1. **Home** — continue listening, recently added, playlists, library summary.

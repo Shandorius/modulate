@@ -8,11 +8,21 @@ import {
   TrackSummary,
 } from './models';
 
+export type TrackSort =
+  | 'recent'
+  | 'oldest'
+  | 'title'
+  | 'artist'
+  | 'album';
+
 @Injectable({ providedIn: 'root' })
 export class LibraryService {
   private readonly api = inject(ApiService);
 
   readonly tracks = signal<Track[]>([]);
+  readonly trackTotal = signal(0);
+  readonly trackSort = signal<TrackSort>('recent');
+  readonly loadingTracks = signal(false);
   readonly playlists = signal<Playlist[]>([]);
   readonly albums = signal<AlbumSummary[]>([]);
   readonly summary = signal<TrackSummary | null>(null);
@@ -31,24 +41,103 @@ export class LibraryService {
     }
     this.loading.set(true);
     this.error.set(null);
+    const requested = Math.max(100, this.tracks().length || 100);
     try {
-      const [tracks, playlists, albums, summary] = await Promise.all([
-        this.api.get<{ data: { tracks: Track[]; total: number } }>(
-          '/tracks?limit=200&sort=recent',
-        ),
+      const [playlists, albums, summary] = await Promise.all([
         this.api.get<{ data: Playlist[] }>('/playlists'),
         this.api.get<{ data: AlbumSummary[] }>('/tracks/albums'),
         this.api.get<{ data: TrackSummary }>('/tracks/summary'),
+        this.loadTracks({
+          sort: this.trackSort(),
+          limit: requested,
+          append: false,
+        }),
       ]);
-      this.tracks.set(tracks.data.tracks);
       this.playlists.set(playlists.data);
       this.albums.set(albums.data);
       this.summary.set(summary.data);
     } catch (error) {
-      this.error.set((error as Error).message);
+      this.error.set((error as Error)?.message || 'Could not load the library.');
     } finally {
       this.loading.set(false);
     }
+  }
+
+  async loadTracks(input: {
+    q?: string;
+    sort?: TrackSort;
+    limit?: number;
+    append?: boolean;
+  } = {}): Promise<void> {
+    const sort = input.sort || this.trackSort();
+    const limit = input.limit || 100;
+    const offset = input.append ? this.tracks().length : 0;
+    if (!input.append) this.loadingTracks.set(true);
+    try {
+      const data = await this.browseTracks({
+        q: input.q,
+        sort,
+        limit,
+        offset,
+      });
+      this.tracks.set(
+        input.append ? [...this.tracks(), ...data.tracks] : data.tracks,
+      );
+      this.trackTotal.set(data.total);
+      this.trackSort.set(sort);
+    } finally {
+      if (!input.append) this.loadingTracks.set(false);
+    }
+  }
+
+  async browseTracks(input: {
+    q?: string;
+    sort?: TrackSort;
+    limit?: number;
+    offset?: number;
+  } = {}): Promise<{ tracks: Track[]; total: number }> {
+    const params = new URLSearchParams();
+    params.set('limit', String(input.limit || 50));
+    params.set('offset', String(input.offset || 0));
+    params.set('sort', input.sort || 'recent');
+    if (input.q?.trim()) params.set('q', input.q.trim());
+    const response = await this.api.get<{
+      data: { tracks: Track[]; total: number };
+    }>(`/tracks?${params.toString()}`);
+    return response.data;
+  }
+
+  async availableTracks(
+    playlistId: string,
+    input: {
+      q?: string;
+      sort?: TrackSort;
+      limit?: number;
+      offset?: number;
+    } = {},
+  ): Promise<{ tracks: Track[]; total: number }> {
+    const params = new URLSearchParams();
+    params.set('limit', String(input.limit || 50));
+    params.set('offset', String(input.offset || 0));
+    params.set('sort', input.sort || 'recent');
+    if (input.q?.trim()) params.set('q', input.q.trim());
+    const response = await this.api.get<{
+      data: { tracks: Track[]; total: number };
+    }>(`/playlists/${playlistId}/available-tracks?${params.toString()}`);
+    return response.data;
+  }
+
+  async allTrackIds(input: {
+    q?: string;
+    sort?: TrackSort;
+  } = {}): Promise<string[]> {
+    const params = new URLSearchParams();
+    params.set('sort', input.sort || 'recent');
+    if (input.q?.trim()) params.set('q', input.q.trim());
+    const response = await this.api.get<{ data: { ids: string[] } }>(
+      `/tracks/ids?${params.toString()}`,
+    );
+    return response.data.ids;
   }
 
   async refreshTracks(query = ''): Promise<Track[]> {

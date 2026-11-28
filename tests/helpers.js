@@ -128,6 +128,13 @@ async function seedTrack(userId, overrides = {}) {
       [values.userId, values.id],
     );
   }
+  if (overrides.createdAt) {
+    await pool.query('UPDATE tracks SET created_at = $2 WHERE id = $1', [
+      values.id,
+      overrides.createdAt,
+    ]);
+    rows[0].created_at = overrides.createdAt;
+  }
   return rows[0];
 }
 
