@@ -60,7 +60,7 @@ export class PlayerService {
     });
     this.audio.addEventListener('play', () => this.isPlaying.set(true));
     this.audio.addEventListener('pause', () => this.isPlaying.set(false));
-    this.audio.addEventListener('ended', () => void this.next());
+    this.audio.addEventListener('ended', () => void this.advance());
 
     await this.heartbeat();
     await this.poll();
@@ -253,6 +253,13 @@ export class PlayerService {
     if (this.isPlaying()) await this.tryPlay();
   }
 
+  // Auto-advance at the end of a track. This is the only path that honours
+  // "repeat one"; a manual Next press always moves on.
+  async advance(): Promise<void> {
+    await this.action({ action: 'next', auto: true }, true);
+    if (this.isPlaying()) await this.tryPlay();
+  }
+
   async previous(): Promise<void> {
     await this.action({ action: 'previous' }, true);
     if (this.isPlaying()) await this.tryPlay();
@@ -287,6 +294,10 @@ export class PlayerService {
 
   async setRepeat(mode: 'off' | 'all' | 'one'): Promise<void> {
     await this.action({ action: 'set_repeat', repeatMode: mode });
+  }
+
+  async setShuffle(enabled: boolean): Promise<void> {
+    await this.action({ action: 'set_shuffle', shuffle: enabled });
   }
 
   async report(): Promise<void> {

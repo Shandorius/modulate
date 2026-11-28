@@ -16,6 +16,8 @@ export type IconName =
   | 'share'
   | 'volume'
   | 'repeat'
+  | 'repeat-one'
+  | 'shuffle'
   | 'close'
   | 'chevron-left'
   | 'music'
@@ -104,6 +106,19 @@ export type IconName =
           <path d="m17 3 3 3-3 3" />
           <path d="M20 6H8a4 4 0 0 0-4 4v1M7 21l-3-3 3-3" />
           <path d="M4 18h12a4 4 0 0 0 4-4v-1" />
+        }
+        @case ('repeat-one') {
+          <path d="m17 3 3 3-3 3" />
+          <path d="M20 6H8a4 4 0 0 0-4 4v1M7 21l-3-3 3-3" />
+          <path d="M4 18h12a4 4 0 0 0 4-4v-1" />
+          <path d="M11 11.2 12.4 10.5v4" />
+        }
+        @case ('shuffle') {
+          <path d="M16 3h5v5" />
+          <path d="M4 20 21 3" />
+          <path d="M21 16v5h-5" />
+          <path d="m15 15 6 6" />
+          <path d="m4 4 5 5" />
         }
         @case ('close') {
           <path d="m6 6 12 12M18 6 6 18" />

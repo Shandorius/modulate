@@ -21,8 +21,8 @@ service, no telemetry, no paid tier, and no remote push provider.
   make a playlist public to everyone on the instance.
 - **Admin-managed accounts** — the first account is the administrator; open
   registration is off by default.
-- **Player** — queue, seek, volume, repeat, favourites, playlists, signed
-  audio streaming with Range support.
+- **Player** — queue, seek, volume, repeat, shuffle, favourites, playlists,
+  signed audio streaming with Range support.
 - **Mobile** — Capacitor 8 Android and iOS projects, secure token storage,
   local notifications, exact-alarm handling.
 - **Home Assistant** — REST state, transport commands, playlist playback, and
@@ -102,6 +102,24 @@ usable for large collections:
   so several tracks can be added in a row.
 - Empty states distinguish “no matches” from “everything is already in this
   playlist”.
+
+## Playback modes
+
+The player has two independent modes, and both are per account and synced to
+every connected device:
+
+- **Shuffle** keeps the track you are listening to and randomises what comes
+  next. Already-played tracks stay where they are, the queue panel shows the
+  real shuffled order, and turning shuffle off restores the original order.
+  Starting an album or playlist while shuffle is on keeps your chosen track
+  current and shuffles the rest. With repeat-all on, the queue is reshuffled for
+  each new pass.
+- **Repeat** cycles off → the whole queue → this track. Repeating one track
+  restarts it when it ends; pressing Next yourself still moves to the next
+  track.
+
+Both controls appear in the desktop player bar and in the mobile Now Playing
+sheet.
 
 ## Screens
 
@@ -452,6 +470,8 @@ Command body:
 { "action": "seek", "positionSeconds": 42 }
 { "action": "volume", "volume": 0.35 }
 { "action": "play_playlist", "playlistId": "…" }
+{ "action": "set_repeat", "repeatMode": "all" }
+{ "action": "set_shuffle", "shuffle": true }
 { "action": "announce", "message": "Dinner is ready", "ttlSeconds": 300 }
 ```
 

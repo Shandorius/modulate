@@ -142,12 +142,76 @@ async function replaceQueue(client, userId, trackIds) {
   }
   for (let index = 0; index < unique.length; index += 1) {
     await client.query(
-      `INSERT INTO playback_queue (user_id, track_id, position)
-       VALUES ($1, $2, $3)`,
+      `INSERT INTO playback_queue (user_id, track_id, position, original_position)
+       VALUES ($1, $2, $3, $3)`,
       [userId, unique[index], index],
     );
   }
   return unique;
+}
+
+async function queueEntries(client, userId, orderBy = 'position ASC') {
+  const { rows } = await client.query(
+    `SELECT id, track_id, position,
+            COALESCE(original_position, position) AS original_position
+     FROM playback_queue
+     WHERE user_id = $1
+     ORDER BY ${orderBy}, position ASC, added_at ASC`,
+    [userId],
+  );
+  return rows;
+}
+
+async function writePosition(client, id, position) {
+  await client.query(
+    'UPDATE playback_queue SET position = $2 WHERE id = $1',
+    [id, position],
+  );
+}
+
+async function renumberQueue(client, userId) {
+  const rows = await queueEntries(client, userId);
+  for (let index = 0; index < rows.length; index += 1) {
+    if (Number(rows[index].position) !== index) {
+      await writePosition(client, rows[index].id, index);
+    }
+  }
+}
+
+function randomOrder(values) {
+  const ordered = [...values];
+  for (let index = ordered.length - 1; index > 0; index -= 1) {
+    const swap = Math.floor(Math.random() * (index + 1));
+    [ordered[index], ordered[swap]] = [ordered[swap], ordered[index]];
+  }
+  return ordered;
+}
+
+// Shuffles everything after the current track so what is playing stays put.
+// Passing a null current track reshuffles the whole queue for a fresh pass.
+async function shuffleUpcoming(client, userId, currentTrackId) {
+  const rows = await queueEntries(client, userId);
+  const currentIndex = currentTrackId
+    ? rows.findIndex((row) => row.track_id === currentTrackId)
+    : -1;
+  const cutoff = currentIndex < 0 ? 0 : currentIndex + 1;
+  const upcoming = rows.slice(cutoff);
+  if (upcoming.length < 2) return;
+  const ordered = randomOrder(upcoming);
+  for (let index = 0; index < ordered.length; index += 1) {
+    await writePosition(client, ordered[index].id, cutoff + index);
+  }
+}
+
+async function restoreQueueOrder(client, userId) {
+  const rows = await queueEntries(
+    client,
+    userId,
+    'original_position ASC NULLS LAST',
+  );
+  for (let index = 0; index < rows.length; index += 1) {
+    await writePosition(client, rows[index].id, index);
+  }
 }
 
 async function queuePosition(client, userId, trackId) {
@@ -289,6 +353,19 @@ async function action(userId, input, baseUrl = '') {
 
     if (actionName === 'next' || actionName === 'previous') {
       if (!state.current_track_id) return;
+      if (
+        actionName === 'next' &&
+        input.auto === true &&
+        state.repeat_mode === 'one'
+      ) {
+        await client.query(
+          `UPDATE playback_state
+           SET position_seconds = 0, is_playing = true
+           WHERE user_id = $1`,
+          [userId],
+        );
+        return;
+      }
       const position = await queuePosition(
         client,
         userId,
@@ -315,7 +392,12 @@ async function action(userId, input, baseUrl = '') {
       );
       const max = Number(maxRows[0].max);
       if (state.repeat_mode === 'all') {
-        if (nextPosition > max) nextPosition = 0;
+        if (nextPosition > max) {
+          if (state.shuffle) {
+            await shuffleUpcoming(client, userId, null);
+          }
+          nextPosition = 0;
+        }
         if (nextPosition < 0) nextPosition = max;
       }
       if (nextPosition < 0 || nextPosition > max) {
@@ -370,6 +452,21 @@ async function action(userId, input, baseUrl = '') {
       return;
     }
 
+    if (actionName === 'set_shuffle') {
+      const enabled = Boolean(input.shuffle);
+      await client.query(
+        'UPDATE playback_state SET shuffle = $1 WHERE user_id = $2',
+        [enabled, userId],
+      );
+      if (enabled) {
+        await renumberQueue(client, userId);
+        await shuffleUpcoming(client, userId, state.current_track_id);
+      } else {
+        await restoreQueueOrder(client, userId);
+      }
+      return;
+    }
+
     if (actionName === 'play_track' || actionName === 'play_playlist') {
       let trackIds = [];
       let startTrackId = null;
@@ -411,6 +508,9 @@ async function action(userId, input, baseUrl = '') {
         [contextType, contextId, userId],
       );
       await setTrack(client, userId, startTrackId, 0, true);
+      if (state.shuffle) {
+        await shuffleUpcoming(client, userId, startTrackId);
+      }
       return;
     }
 
@@ -423,8 +523,8 @@ async function action(userId, input, baseUrl = '') {
         [userId],
       );
       await client.query(
-        `INSERT INTO playback_queue (user_id, track_id, position)
-         VALUES ($1, $2, $3)`,
+        `INSERT INTO playback_queue (user_id, track_id, position, original_position)
+         VALUES ($1, $2, $3, $3)`,
         [userId, input.trackId, rows[0].position],
       );
       return;
@@ -436,6 +536,8 @@ async function action(userId, input, baseUrl = '') {
         'DELETE FROM playback_queue WHERE id = $1 AND user_id = $2',
         [input.queueId, userId],
       );
+      // Close the gap so next/previous never land on a missing position.
+      await renumberQueue(client, userId);
       return;
     }
 

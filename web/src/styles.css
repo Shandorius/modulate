@@ -2694,3 +2694,42 @@ code,
     flex: 1;
   }
 }
+
+/* Playback modes ---------------------------------------------------------- */
+
+.now-playing__modes {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  color: var(--muted);
+  background: rgb(5 7 6 / 42%);
+  font-size: 0.74rem;
+  font-weight: 600;
+  transition:
+    color 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.mode-chip:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.mode-chip.is-on {
+  color: var(--on-accent);
+  border-color: transparent;
+  background: var(--accent);
+}

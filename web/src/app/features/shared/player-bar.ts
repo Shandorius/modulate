@@ -2,7 +2,7 @@ import { Component, computed, effect, inject, signal } from '@angular/core';
 import { ApiService } from '../../core/api.service';
 import { PlayerService } from '../../core/player.service';
 import { ToastService } from '../../core/toast.service';
-import { Icon } from './icon';
+import { Icon, IconName } from './icon';
 
 @Component({
   selector: 'app-player-bar',
@@ -73,11 +73,23 @@ import { Icon } from './icon';
         <button
           class="icon-btn"
           type="button"
-          [class.is-on]="player.state()?.state?.repeatMode !== 'off'"
-          [title]="'Repeat: ' + (player.state()?.state?.repeatMode || 'off')"
+          [class.is-on]="shuffleOn()"
+          [attr.aria-pressed]="shuffleOn()"
+          [title]="shuffleOn() ? 'Shuffle on' : 'Shuffle off'"
+          [attr.aria-label]="shuffleOn() ? 'Turn shuffle off' : 'Turn shuffle on'"
+          (click)="toggleShuffle()"
+        >
+          <app-icon name="shuffle" [size]="17" />
+        </button>
+        <button
+          class="icon-btn"
+          type="button"
+          [class.is-on]="repeatMode() !== 'off'"
+          [title]="repeatLabel()"
+          [attr.aria-label]="repeatLabel() + '. Change repeat mode.'"
           (click)="cycleRepeat()"
         >
-          <app-icon name="repeat" [size]="17" />
+          <app-icon [name]="repeatIcon()" [size]="17" />
         </button>
         <input
           class="volume-range"
@@ -99,6 +111,9 @@ import { Icon } from './icon';
             <p class="eyebrow">Up next</p>
             <h2>Queue</h2>
           </div>
+          @if (shuffleOn()) {
+            <span class="pill">Shuffled</span>
+          }
           <button class="icon-btn" type="button" aria-label="Close queue" (click)="queueOpen.set(false)"><app-icon name="close" [size]="18" /></button>
         </header>
         @if (player.queue().length) {
@@ -157,6 +172,27 @@ import { Icon } from './icon';
           </button>
           <button class="icon-btn" type="button" aria-label="Next" (click)="player.next()"><app-icon name="next" [size]="24" /></button>
         </div>
+        <div class="now-playing__modes">
+          <button
+            class="mode-chip"
+            type="button"
+            [class.is-on]="shuffleOn()"
+            [attr.aria-pressed]="shuffleOn()"
+            (click)="toggleShuffle()"
+          >
+            <app-icon name="shuffle" [size]="16" />
+            {{ shuffleOn() ? 'Shuffle on' : 'Shuffle' }}
+          </button>
+          <button
+            class="mode-chip"
+            type="button"
+            [class.is-on]="repeatMode() !== 'off'"
+            (click)="cycleRepeat()"
+          >
+            <app-icon [name]="repeatIcon()" [size]="16" />
+            {{ repeatShortLabel() }}
+          </button>
+        </div>
         @if (player.current()?.album) {
           <p class="small muted">{{ player.current()?.album }}</p>
         }
@@ -173,6 +209,29 @@ export class PlayerBar {
   readonly expanded = signal(false);
   readonly Math = Math;
   readonly queueIds = computed(() => this.player.queue().map((item) => item.track.id));
+  readonly shuffleOn = computed(() =>
+    Boolean(this.player.state()?.state?.shuffle),
+  );
+  readonly repeatMode = computed(
+    () => this.player.state()?.state?.repeatMode || 'off',
+  );
+  readonly repeatIcon = computed<IconName>(() =>
+    this.repeatMode() === 'one' ? 'repeat-one' : 'repeat',
+  );
+  readonly repeatLabel = computed(() =>
+    this.repeatMode() === 'off'
+      ? 'Repeat off'
+      : this.repeatMode() === 'all'
+        ? 'Repeat the queue'
+        : 'Repeat this track',
+  );
+  readonly repeatShortLabel = computed(() =>
+    this.repeatMode() === 'off'
+      ? 'Repeat'
+      : this.repeatMode() === 'all'
+        ? 'Repeat queue'
+        : 'Repeat track',
+  );
 
   private lastAnnouncement: string | null = null;
 
@@ -206,9 +265,28 @@ export class PlayerBar {
   }
 
   cycleRepeat(): void {
-    const mode = this.player.state()?.state?.repeatMode || 'off';
-    const next = mode === 'off' ? 'all' : mode === 'all' ? 'one' : 'off';
+    const next =
+      this.repeatMode() === 'off'
+        ? 'all'
+        : this.repeatMode() === 'all'
+          ? 'one'
+          : 'off';
     void this.player.setRepeat(next);
+    this.toast.show(
+      next === 'off'
+        ? 'Repeat off.'
+        : next === 'all'
+          ? 'Repeating the whole queue.'
+          : 'Repeating this track.',
+    );
+  }
+
+  toggleShuffle(): void {
+    const enabled = !this.shuffleOn();
+    void this.player.setShuffle(enabled);
+    this.toast.show(
+      enabled ? 'Shuffle on. Up next is random.' : 'Shuffle off. Queue restored.',
+    );
   }
 
   dismissAnnouncement(): void {
