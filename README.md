@@ -27,6 +27,9 @@ service, no telemetry, no paid tier, and no remote push provider.
   local notifications, exact-alarm handling.
 - **Home Assistant** — REST state, transport commands, playlist playback, and
   announcements to a connected player.
+- **Music Assistant & Subsonic apps** — an OpenSubsonic-compatible read API
+  (`/rest`) authenticated with revocable API keys. Browse, search, stream, and
+  play playlists from Music Assistant, Symfonium, Feishin, and other clients.
 - **One deployment unit** — the web UI, API, media streaming, and ingest worker
   all run in a single application image. PostgreSQL is the only companion
   container.
@@ -128,7 +131,8 @@ sheet.
 2. **Search** — local search across tracks, artists, albums, and playlists.
 3. **Library** — tracks, playlists, albums, imports, favourites.
 4. **Collection** — playlist or album detail with queue and playlist actions.
-5. **Settings** — imports, Home Assistant, notifications, and account.
+5. **Settings** — imports, integrations (Home Assistant, Music Assistant,
+   Subsonic apps), notifications, and account.
 
 ## Quick start with Docker
 
@@ -445,6 +449,52 @@ PUT    /api/v1/admin/settings
 The user picker exposes display names and account emails only to authenticated
 users on the instance. Public playlist pages show the owner's display name, not
 their email.
+
+## Music Assistant and Subsonic apps
+
+Modulate exposes an OpenSubsonic-compatible read API at `/rest`. Music Assistant
+uses it through its **Open Subsonic** music provider; the same endpoint works with
+Symfonium, Feishin, Supersonic, Amperfy, and other Subsonic clients.
+
+Setup:
+
+1. Open **Settings → Integrations → Subsonic API**.
+2. Create an API key and copy it once.
+3. In Music Assistant, add an **Open Subsonic** music provider.
+4. Enter your Modulate URL, leave the username/password fields empty, and paste
+   the key into **API Token**.
+5. Sync. Music Assistant imports the shared library.
+
+Authentication uses the OpenSubsonic API key extension, because Modulate stores
+Argon2 password hashes and cannot compute the legacy `md5(password + salt)`
+token. Keys are revocable and expire after ten years.
+
+Playlist visibility follows the account that owns the key:
+
+- its own playlists, playlists shared with it, and public playlists are visible;
+- other accounts' private playlists stay hidden, including from administrators.
+
+Music Assistant has one shared catalogue for everyone who uses it. If privacy
+matters, create a dedicated Modulate account for Music Assistant and share only
+the playlists it should see.
+
+Implemented endpoints:
+
+```text
+ping, getLicense, getOpenSubsonicExtensions, getMusicFolders
+getArtists, getArtist, getArtistInfo2
+getAlbum, getAlbumInfo2, getAlbumList2, getSong
+search3, getCoverArt, stream
+getPlaylists, getPlaylist, getStarred2
+getTopSongs, getSimilarSongs (empty placeholders)
+```
+
+Write operations (`star`, playlist editing) are not exposed yet. If a client
+tries one, it receives a Subsonic error instead of a silent failure.
+
+Known Music Assistant limitation: some m4a/opus files with mid-file metadata may
+not play over a Subsonic connection. The server sends the original file; a
+transcode option can be added later using the ffmpeg already in the image.
 
 ## Home Assistant
 

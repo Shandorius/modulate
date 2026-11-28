@@ -102,8 +102,8 @@ async function seedTrack(userId, overrides = {}) {
     `INSERT INTO tracks (
        id, created_by, title, artist, album, album_artist, track_number,
        release_year, duration_seconds, file_path, artwork_path,
-       source_id, source_url, source_kind
-     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'url')
+       source_id, source_url, source_kind, file_size_bytes, mime_type
+     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'url',$14,$15)
      RETURNING *`,
     [
       values.id,
@@ -119,6 +119,8 @@ async function seedTrack(userId, overrides = {}) {
       values.artworkPath,
       values.sourceId,
       values.sourceUrl,
+      fs.statSync(audio).size,
+      overrides.mimeType || 'audio/mp4',
     ],
   );
   if (values.isFavorite) {

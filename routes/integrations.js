@@ -10,6 +10,8 @@ function baseUrl(req) {
   return `${req.protocol}://${req.get('host')}`;
 }
 
+const SUBSONIC_KEY_LIFETIME_MS = 10 * 365 * 24 * 60 * 60 * 1000;
+
 function tokenService(req) {
   const auth = req.app.locals.auth;
   if (!auth?.mobile?.tokens) {
@@ -77,6 +79,90 @@ router.post(
       });
     } catch (error) {
       next(error);
+    }
+  },
+);
+
+async function subsonicKeys(req) {
+  const devices = await tokenService(req).listDevices(req.user.id);
+  return devices
+    .filter((device) => device.platform === 'subsonic')
+    .map((device) => ({
+      id: device.id,
+      label: device.label,
+      hint: device.tokenHint,
+      lastUsedAt: device.lastUsedAt,
+      expiresAt: device.expiresAt,
+      createdAt: device.createdAt,
+    }));
+}
+
+function subsonicInfo(req) {
+  return {
+    baseUrl: baseUrl(req),
+    endpoint: `${baseUrl(req)}/rest`,
+    owner: req.user.display_name || req.user.email,
+  };
+}
+
+router.get('/subsonic', async (req, res, next) => {
+  try {
+    res.json({
+      data: { ...subsonicInfo(req), keys: await subsonicKeys(req) },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post(
+  '/subsonic/keys',
+  validate({
+    body: z.object({
+      label: z.string().trim().min(1).max(100).optional(),
+    }),
+  }),
+  async (req, res, next) => {
+    try {
+      const label = req.validated.body.label || 'Music Assistant';
+      const issued = await tokenService(req).issueForUser(req.user.id, {
+        label,
+        platform: 'subsonic',
+        deviceId: `subsonic-${crypto.randomUUID()}`,
+        expiresAt: new Date(Date.now() + SUBSONIC_KEY_LIFETIME_MS),
+      });
+      res.status(201).json({
+        data: {
+          token: issued.token,
+          expiresAt: issued.expiresAt,
+          label,
+          hint: issued.record?.token_hint,
+          ...subsonicInfo(req),
+        },
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+);
+
+router.delete(
+  '/subsonic/keys/:id',
+  validate({ params: z.object({ id: z.string().uuid() }) }),
+  async (req, res, next) => {
+    try {
+      const revoked = await tokenService(req).revokeById(
+        req.user.id,
+        req.params.id,
+      );
+      if (!revoked) {
+        return res.status(404).json({
+          error: { code: 'NOT_FOUND', message: 'API key not found.' },
+        });
+      }
+      return res.json({ data: { id: req.params.id, revoked: true } });
+    } catch (error) {
+      return next(error);
     }
   },
 );

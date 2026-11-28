@@ -11,6 +11,7 @@ const { pool } = require('./db/pool');
 const initAuth = require('./auth');
 const apiRouter = require('./routes');
 const mediaRouter = require('./routes/media');
+const subsonicRouter = require('./routes/subsonic');
 const notFound = require('./middleware/notFound');
 const { errorHandler } = require('./middleware/errorHandler');
 const {
@@ -93,6 +94,7 @@ async function createApp() {
   const auth = await initAuth(app, { pool });
   app.locals.auth = auth;
 
+  app.use('/rest', subsonicRouter);
   app.use('/api/v1', apiRouter);
 
   const dist = webDist();
@@ -116,7 +118,8 @@ async function createApp() {
         req.path.startsWith('/auth/') ||
         req.path === '/health' ||
         req.path.startsWith('/stream/') ||
-        req.path.startsWith('/artwork/')
+        req.path.startsWith('/artwork/') ||
+        req.path.startsWith('/rest')
       ) {
         return next();
       }

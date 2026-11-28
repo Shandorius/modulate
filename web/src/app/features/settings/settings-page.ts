@@ -42,8 +42,8 @@ import { Icon } from '../shared/icon';
         <a class="settings-link" routerLink="/app/settings/home-assistant">
           <span class="settings-link__mark"><app-icon name="home" [size]="18" /></span>
           <span class="settings-link__body">
-            <span class="settings-link__title">Home Assistant</span>
-            <span class="settings-link__desc">API tokens, state endpoint, playback commands</span>
+            <span class="settings-link__title">Integrations</span>
+            <span class="settings-link__desc">Home Assistant, Music Assistant, Subsonic apps</span>
           </span>
           <app-icon name="chevron-left" [size]="16" class="settings-link__arrow" />
         </a>

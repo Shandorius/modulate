@@ -2,6 +2,10 @@ import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { HomeAssistantService } from '../../core/home-assistant.service';
+import {
+  IssuedSubsonicKey,
+  SubsonicService,
+} from '../../core/subsonic.service';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../shared/icon';
 
@@ -13,8 +17,8 @@ import { Icon } from '../shared/icon';
       <header class="page-header">
         <div>
           <a class="settings-back" routerLink="/app/settings">‹ Settings</a>
-          <p class="eyebrow">Integrations</p>
-          <h1 class="display">Home Assistant</h1>
+          <p class="eyebrow">Settings</p>
+          <h1 class="display">Integrations</h1>
         </div>
         @if (integration()?.activePlayers) {
           <span class="status-pill status-pill--running">{{ integration()!.activePlayers }} player online</span>
@@ -24,8 +28,8 @@ import { Icon } from '../shared/icon';
       </header>
 
       <p class="lede">
-        Issue a bearer token for Home Assistant. Commands are applied to the
-        player that is currently open in a browser or on a phone.
+        Connect Home Assistant to control the player, or point Music Assistant
+        and other Subsonic apps at your library.
       </p>
 
       @if (error()) {
@@ -35,10 +39,15 @@ import { Icon } from '../shared/icon';
       <section class="section">
         <div class="section__head">
           <div>
-            <p class="eyebrow">Access</p>
-            <h2 class="section__title">Tokens</h2>
+            <p class="eyebrow">Home Assistant</p>
+            <h2 class="section__title">Bearer tokens</h2>
           </div>
         </div>
+
+        <p class="small muted">
+          Commands are applied to the player that is currently open in a browser
+          or on a phone.
+        </p>
 
         @if (newToken(); as token) {
           <div class="token-reveal card">
@@ -74,12 +83,74 @@ import { Icon } from '../shared/icon';
         }
       </section>
 
+      <section class="section">
+        <div class="section__head">
+          <div>
+            <p class="eyebrow">Music Assistant</p>
+            <h2 class="section__title">Subsonic API</h2>
+          </div>
+        </div>
+
+        <p class="small muted">
+          Music Assistant, Symfonium, Feishin and other Subsonic apps can browse
+          this library. In Music Assistant add an <strong>Open Subsonic</strong>
+          music provider, enter the server URL below, and paste the API key into
+          the “API Token” field instead of a username and password.
+        </p>
+
+        @if (newKey(); as key) {
+          <div class="token-reveal card">
+            <p class="eyebrow">Copy this now</p>
+            <p class="small muted">The full API key is shown once.</p>
+            <code class="code-block">{{ key.token }}</code>
+            <button class="btn btn--ghost btn--sm" type="button" (click)="copy(key.token)">Copy API key</button>
+          </div>
+        }
+
+        <form class="inline-create" (ngSubmit)="createKey()">
+          <input class="input" name="keyLabel" [(ngModel)]="keyLabel" placeholder="Key label (Music Assistant)" aria-label="API key label" />
+          <button class="btn btn--primary" type="submit" [disabled]="issuingKey()">
+            {{ issuingKey() ? 'Issuing…' : 'Create API key' }}
+          </button>
+        </form>
+
+        @if (subsonic()?.keys?.length) {
+          <div class="result-list">
+            @for (key of subsonic()!.keys; track key.id) {
+              <div class="result-item">
+                <span class="result-item__mark"><app-icon name="queue" [size]="17" /></span>
+                <span class="result-item__body">
+                  <strong>{{ key.label || 'Subsonic app' }}</strong>
+                  <small>{{ key.hint }}… · created {{ formatDate(key.createdAt) }}</small>
+                </span>
+                <button class="text-button text-button--danger" type="button" (click)="revokeKey(key.id)">Revoke</button>
+              </div>
+            }
+          </div>
+        } @else {
+          <p class="empty-copy">No Subsonic API key yet.</p>
+        }
+
+        @if (subsonic(); as info) {
+          <div class="endpoint-list card">
+            <div><span>Server URL</span><code>{{ info.baseUrl }}</code></div>
+            <div><span>API endpoint</span><code>{{ info.endpoint }}</code></div>
+            <div><span>Account</span><code>{{ info.owner }}</code></div>
+          </div>
+          <p class="small muted">
+            Apps see the playlists this account can play: its own, playlists
+            shared with it, and public playlists. Other accounts' private
+            playlists stay hidden.
+          </p>
+        }
+      </section>
+
       @if (integration(); as info) {
         <section class="section">
           <div class="section__head">
             <div>
               <p class="eyebrow">Connection</p>
-              <h2 class="section__title">Endpoints</h2>
+              <h2 class="section__title">Home Assistant endpoints</h2>
             </div>
           </div>
           <div class="endpoint-list card">
@@ -108,17 +179,22 @@ import { Icon } from '../shared/icon';
 })
 export class SettingsHomeAssistantPage implements OnInit {
   private readonly service = inject(HomeAssistantService);
+  private readonly subsonicService = inject(SubsonicService);
   private readonly toast = inject(ToastService);
 
   readonly integration = this.service.integration;
   readonly error = this.service.error;
   readonly issuing = signal(false);
   readonly newToken = signal<string | null>(null);
+  readonly subsonic = this.subsonicService.integration;
+  readonly issuingKey = signal(false);
+  readonly newKey = signal<IssuedSubsonicKey | null>(null);
 
   label = 'Living room';
+  keyLabel = 'Music Assistant';
 
   async ngOnInit(): Promise<void> {
-    await this.service.load();
+    await Promise.all([this.service.load(), this.subsonicService.load()]);
   }
 
   async createToken(): Promise<void> {
@@ -139,6 +215,30 @@ export class SettingsHomeAssistantPage implements OnInit {
     if (!window.confirm('Revoke this Home Assistant token?')) return;
     await this.service.revokeToken(id);
     this.toast.show('Token revoked.');
+  }
+
+  async createKey(): Promise<void> {
+    this.issuingKey.set(true);
+    this.newKey.set(null);
+    try {
+      const key = await this.subsonicService.issueKey(
+        this.keyLabel.trim() || 'Music Assistant',
+      );
+      this.newKey.set(key);
+      this.toast.show('API key created. Copy it now.');
+    } catch (error) {
+      this.toast.show((error as Error).message);
+    } finally {
+      this.issuingKey.set(false);
+    }
+  }
+
+  async revokeKey(id: string): Promise<void> {
+    if (!window.confirm('Revoke this Subsonic API key? Apps using it will stop working.')) {
+      return;
+    }
+    await this.subsonicService.revokeKey(id);
+    this.toast.show('API key revoked.');
   }
 
   copy(value: string): void {

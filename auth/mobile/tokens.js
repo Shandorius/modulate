@@ -23,9 +23,11 @@ function createTokenService({ repository, config }) {
 
   async function issueForUser(userId, metadata = {}) {
     const rawToken = generateRawToken(config);
-    const expiresAt = new Date(
-      Date.now() + config.mobile.ttl_days * 24 * 60 * 60 * 1000,
-    );
+    // Long-lived integration keys (for example an OpenSubsonic API key) can
+    // ask for their own expiry. Everything else keeps the mobile TTL.
+    const expiresAt = metadata.expiresAt
+      ? new Date(metadata.expiresAt)
+      : new Date(Date.now() + config.mobile.ttl_days * 24 * 60 * 60 * 1000);
 
     const record = await repository.issueForUser(userId, {
       tokenHash: hashToken(rawToken),
