@@ -1,6 +1,7 @@
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { ApiService } from '../../core/api.service';
 import { APP_NAME } from '../../core/app-config';
 import { AuthService } from '../../core/auth.service';
 import { Icon } from '../shared/icon';
@@ -42,12 +43,15 @@ import { Icon } from '../shared/icon';
                 [(ngModel)]="instanceUrl"
                 placeholder="https://music.example.com"
               />
-              <span class="field__hint">The address you use to open Modulate in a browser.</span>
+              <span class="field__hint">The same address you open in a browser. Public servers use https:// — a LAN address can stay http://.</span>
             </label>
             @if (auth.needsInstance()) {
-              <button class="btn btn--ghost btn--block" type="button" (click)="saveInstance()">
-                Use this server
+              <button class="btn btn--ghost btn--block" type="button" [disabled]="savingInstance()" (click)="saveInstance()">
+                {{ savingInstance() ? 'Checking…' : 'Use this server' }}
               </button>
+            }
+            @if (instanceStatus(); as status) {
+              <p class="field__hint field__hint--ok">{{ status }}</p>
             }
           </div>
         }
@@ -134,10 +138,13 @@ import { Icon } from '../shared/icon';
 export class AuthPage implements OnInit {
   readonly appName = APP_NAME;
   readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
   private readonly router = inject(Router);
 
   readonly mode = signal<'login' | 'register'>('login');
   readonly loading = signal(false);
+  readonly savingInstance = signal(false);
+  readonly instanceStatus = signal<string | null>(null);
   readonly error = signal<string | null>(null);
   readonly registration = signal({
     hasUsers: false,
@@ -155,6 +162,7 @@ export class AuthPage implements OnInit {
   }
 
   private async refreshRegistrationStatus(): Promise<void> {
+    if (this.auth.isNative() && this.auth.needsInstance()) return;
     try {
       const status = await this.auth.registrationStatus();
       this.registration.set(status);
@@ -171,12 +179,18 @@ export class AuthPage implements OnInit {
 
   async saveInstance(): Promise<void> {
     this.error.set(null);
+    this.instanceStatus.set(null);
+    this.savingInstance.set(true);
     try {
       await this.auth.setInstanceUrl(this.instanceUrl);
       this.instanceUrl = this.auth.tokens.instanceUrl();
+      await this.api.probe();
+      this.instanceStatus.set(`Connected to ${this.instanceUrl}.`);
       await this.refreshRegistrationStatus();
     } catch (error) {
       this.error.set((error as Error).message);
+    } finally {
+      this.savingInstance.set(false);
     }
   }
 

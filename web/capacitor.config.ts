@@ -9,6 +9,11 @@ const config: CapacitorConfig = {
     iosScheme: 'capacitor',
     cleartext: true,
   },
+  android: {
+    // Self-hosted servers on a LAN often run without TLS. The app itself is
+    // served over https://localhost, so allow it to call those http addresses.
+    allowMixedContent: true,
+  },
   plugins: {
     SplashScreen: {
       launchShowDuration: 900,

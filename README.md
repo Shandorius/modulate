@@ -520,8 +520,16 @@ JAVA_HOME=/usr/lib/jvm/java-21-openjdk ./gradlew assembleDebug
 ```
 
 The debug APK is at `web/android/app/build/outputs/apk/debug/app-debug.apk`.
-On first launch, enter the URL of your Modulate instance. The token is stored
-in Android Keystore-backed secure storage.
+On first launch, enter the URL of your Modulate instance. Use the same address
+as your browser — public servers over `https://`, a LAN address such as
+`http://192.168.1.185:8465` is fine. A public `http://` address is upgraded to
+`https://` automatically so credentials are never sent in cleartext. The app
+checks `/health` before saving the address and explains a failed connection
+instead of showing a bare network error.
+
+The token is stored in Android Keystore-backed secure storage. Native requests
+use bearer tokens only; cookies are a web-only session mechanism and are never
+sent cross-origin from the app.
 
 The merged manifest includes:
 

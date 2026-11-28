@@ -20,9 +20,18 @@ export class ApiService {
   private readonly http = inject(HttpClient);
   private readonly tokens = inject(TokenStorageService);
 
+  private get native(): boolean {
+    return Capacitor.isNativePlatform();
+  }
+
   private apiRoot(): string {
-    if (!Capacitor.isNativePlatform()) return '';
+    if (!this.native) return '';
     return this.tokens.instanceUrl() || DEFAULT_API_BASE;
+  }
+
+  /** Check that the configured instance answers before we store credentials. */
+  async probe(): Promise<void> {
+    await this.request('GET', '/health');
   }
 
   /** Resolve a server-relative media URL for the current platform. */
@@ -71,7 +80,10 @@ export class ApiService {
         this.http.request<T>(method, `${this.apiRoot()}${path}`, {
           body,
           headers,
-          withCredentials: !token,
+          // Cookies are a web-only session mechanism. Native clients use
+          // bearer tokens, and sending credentials cross-origin would be
+          // rejected by the browser's CORS rules for a wildcard origin.
+          withCredentials: !this.native,
           observe: 'body',
         }),
       );
@@ -80,11 +92,12 @@ export class ApiService {
       const payload = response.error as
         | { error?: { code?: string; message?: string } }
         | undefined;
-      throw new ApiError(
-        payload?.error?.message || response.message || 'Request failed.',
-        response.status || 0,
-        payload?.error?.code,
-      );
+      const status = Number(response.status) || 0;
+      const message =
+        status === 0
+          ? `Could not reach ${this.apiRoot() || 'your Modulate server'}. Check the address (it usually starts with https://) and that this device is online.`
+          : payload?.error?.message || response.message || 'Request failed.';
+      throw new ApiError(message, status, payload?.error?.code);
     }
   }
 }

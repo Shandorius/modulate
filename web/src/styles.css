@@ -2786,3 +2786,8 @@ code,
     flex-direction: column;
   }
 }
+
+.field__hint--ok {
+  color: var(--accent-soft);
+  font-weight: 600;
+}
